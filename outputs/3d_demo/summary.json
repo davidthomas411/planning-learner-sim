@@ -1,0 +1,31 @@
+{
+  "case_id": "synthetic3d-010000",
+  "grid": [
+    64,
+    64,
+    64
+  ],
+  "voxels": 262144,
+  "candidate_beams": 12,
+  "fluence_map_per_beam": [
+    8,
+    8
+  ],
+  "implicit_geometry_cache_mb": 14.2535400390625,
+  "avoided_dense_matrix_gb_float32": 0.75,
+  "elapsed_seconds_cpu_reference": 17.708499099942856,
+  "manual_actions": [
+    "Increase OAR 1 priority",
+    "Add 30\u00b0 beam",
+    "Increase OAR 2 priority",
+    "Increase target priority"
+  ],
+  "final_metrics": {
+    "target_d95": 0.8762058615684509,
+    "target_d02": 1.1146353483200073,
+    "oar_mean_over_limit": [
+      0.9811222776099358,
+      0.9779274104836012
+    ]
+  }
+}

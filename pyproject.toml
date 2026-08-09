@@ -1,0 +1,26 @@
+[project]
+name = "dosim-trajectory-sim"
+version = "0.1.0"
+description = "Synthetic proof-of-principle for endpoint versus trajectory supervision in treatment planning"
+requires-python = ">=3.11"
+dependencies = [
+  "matplotlib>=3.9",
+  "numpy>=2.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

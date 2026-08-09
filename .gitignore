@@ -1,0 +1,25 @@
+# Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+
+# Tool and editor state
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Large future training artifacts
+checkpoints/
+runs/
+wandb/
+*.ckpt
+*.pt
+*.pth
+
+# Temporary files
+*.tmp
+*.log

@@ -1,0 +1,6 @@
+seed,case_id,environment_version,valid,reachable,stopping_reason,manual_actions,initial_violation,final_violation,reason
+10000,synthetic-010000,0.6-manual,True,True,acceptable,3,0.008633541122123162,0.0,
+10001,synthetic-010001,0.6-manual,True,True,acceptable,2,0.0025363038846444104,0.0,
+10002,synthetic-010002,0.6-manual,True,True,acceptable,1,1.0577685876137985e-07,0.0,
+10003,synthetic-010003,0.6-manual,True,False,oracle_step_limit,8,0.025036330406892696,5.95230659119511e-09,
+10004,synthetic-010004,0.6-manual,True,True,acceptable,1,1.863228600848241e-05,0.0,
