@@ -22,7 +22,7 @@ This local environment override is intentionally not encoded as a mandatory proj
 
 ## Correctness
 
-All 18 tests pass with CUDA-enabled Torch installed. The additional tests compare PyTorch forward dose and adjoint values with the NumPy reference, verify batched and individual evaluations agree, confirm inactive beams remain exactly zero, verify difficulty-stratified geometry generation, and restrict recorded 3D planning to the declared high-level action vocabulary.
+All 20 tests pass with CUDA-enabled Torch installed. The additional tests compare PyTorch forward dose and adjoint values with the NumPy reference, verify batched and individual evaluations agree, confirm inactive beams remain exactly zero, verify difficulty-stratified geometry generation, validate split integrity, and restrict recorded 3D planning to the declared high-level action vocabulary.
 
 The first pure-float16 full optimization produced NaNs because Adam's optimizer state was also float16. The implementation now uses the normal mixed-precision pattern: float16 cached geometry with float32 master fluence and optimizer moments. A finite-loss guard stops any future non-finite trajectory immediately.
 

@@ -119,7 +119,7 @@ The latest 12-case diagnostic is preserved in `outputs/oracle_pilot_v2/`, includ
 ## Validate the revised 3D environment
 
 ```powershell
-uv run --extra gpu python scripts/validate_3d_environment.py --cases 100 --response-cases 12 --grid-size 64 --iterations 200 --device cuda:0 --output-dir outputs/3d_environment_validation_v4
+uv run python scripts/validate_3d_environment.py --cases 100 --response-cases 12 --grid-size 64 --iterations 200 --device cuda:0 --output-dir outputs/3d_environment_validation_v4
 ```
 
 The controlled test compares target- and named-OAR-weight perturbations with neutral continuations of equal length from the same fluence state. The current run produced the expected response in all 12 stratified cases for both controls.
@@ -127,8 +127,8 @@ The controlled test compares target- and named-OAR-weight perturbations with neu
 ## Audit bounded high-level search
 
 ```powershell
-uv run --extra gpu python scripts/run_3d_search_pilot.py --cases-per-stratum 10 --grid-size 32 --fluence-size 8 --max-steps 6 --beam-width 3 --output-dir outputs/3d_search_pilot_revised_30_shallow
-uv run --extra gpu python scripts/audit_3d_search_failures.py outputs/3d_search_pilot_revised_30_shallow/case_metrics.csv --grid-size 32 --iterations 40 --max-steps 10 --beam-width 4 --output-dir outputs/3d_search_failure_audit_revised
+uv run python scripts/run_3d_search_pilot.py --cases-per-stratum 10 --grid-size 32 --fluence-size 8 --max-steps 6 --beam-width 3 --output-dir outputs/3d_search_pilot_revised_30_shallow
+uv run python scripts/audit_3d_search_failures.py outputs/3d_search_pilot_revised_30_shallow/case_metrics.csv --grid-size 32 --iterations 40 --max-steps 10 --beam-width 4 --output-dir outputs/3d_search_failure_audit_revised
 ```
 
 Both stages change only beam membership or named target, hot-spot, and OAR priorities. The deeper stage is restricted to routine-search failures that the independent reference solver can reach.
@@ -136,7 +136,7 @@ Both stages change only beam membership or named target, hot-spot, and OAR prior
 ## Run the closed-loop learner development check
 
 ```powershell
-uv run --extra gpu python scripts/evaluate_3d_closed_loop_pilot.py --dataset-dir outputs/3d_dataset_pilot_revised --seeds 5 --action-weight 0.02 --output-dir outputs/3d_closed_loop_pilot_stop_masked
+uv run python scripts/evaluate_3d_closed_loop_pilot.py --dataset-dir outputs/3d_dataset_pilot_revised --seeds 5 --action-weight 0.02 --output-dir outputs/3d_closed_loop_pilot_stop_masked
 ```
 
 The learned trajectory policy selects one legal high-level action, the inner optimizer recalculates fluence, and the process repeats. Stop is legal only when the current plan satisfies all visible acceptance rules. The endpoint arm in this script is a direct terminal-settings comparator; it is not the prespecified primary iterative endpoint-only policy.
@@ -144,7 +144,7 @@ The learned trajectory policy selects one legal high-level action, the inner opt
 ## Run the matched iterative-policy development check
 
 ```powershell
-uv run --extra gpu python scripts/train_3d_iterative_policy_pilot.py --dataset-dir outputs/3d_dataset_pilot_revised --pretrain-updates 400 --updates 30 --seeds 3 --dtype float32 --deterministic --output-dir outputs/3d_iterative_policy_pilot_deterministic
+uv run python scripts/train_3d_iterative_policy_pilot.py --dataset-dir outputs/3d_dataset_pilot_revised --pretrain-updates 400 --updates 30 --seeds 3 --dtype float32 --deterministic --output-dir outputs/3d_iterative_policy_pilot_deterministic
 ```
 
 Both arms use the same iterative network, terminal simulator reward, legal-action mask, rollout limit, and optimizer-update count. The endpoint-only arm receives no intermediate demonstration action. The trajectory arm receives the same terminal supervision plus categorical supervision on the recorded high-level actions.
@@ -152,7 +152,7 @@ Both arms use the same iterative network, terminal simulator reward, legal-actio
 ## Compare angular delivery complexity
 
 ```powershell
-uv run --extra gpu python scripts/run_3d_delivery_complexity_pilot.py --cases-per-stratum 4 --grid-size 64 --fluence-size 8 --iterations 200 --output-dir outputs/3d_delivery_complexity_pilot
+uv run python scripts/run_3d_delivery_complexity_pilot.py --cases-per-stratum 4 --grid-size 64 --fluence-size 8 --iterations 200 --output-dir outputs/3d_delivery_complexity_pilot
 ```
 
 This paired engineering pilot compares four static fields, twelve static fields, 19 control points over 180 degrees, and 36 control points over 360 degrees. The arc-like modes use independent fluence maps at sampled angles. They are useful angular-complexity surrogates but are not delivery-realistic VMAT.
@@ -168,7 +168,7 @@ This writes matched `endpoints.jsonl` and `trajectories.jsonl` records, compress
 For a prespecified, shardable 3D pilot, select cases from the frozen split manifest rather than allocating sequential development seeds. For example, the first training shard is generated with:
 
 ```powershell
-uv run --extra gpu python scripts/build_3d_dataset_pilot.py --split-manifest outputs/splits/case_split_manifest.csv --split train --start-ordinal 0 --max-attempts 100 --retained-cases 60 --device cuda:0 --output-dir outputs/3d_300_train_shard0
+uv run python scripts/build_3d_dataset_pilot.py --split-manifest outputs/splits/case_split_manifest.csv --split train --start-ordinal 0 --max-attempts 100 --retained-cases 60 --device cuda:0 --output-dir outputs/3d_300_train_shard0
 ```
 
 `--start-ordinal` defines a nonoverlapping manifest range for each GPU process. Training and validation cases must be generated into separate shards and merged only after case-identity and ordinal checks.
