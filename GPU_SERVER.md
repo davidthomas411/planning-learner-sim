@@ -51,7 +51,7 @@ uv run python scripts/benchmark_torch_3d.py \
   --dtype float16
 ```
 
-The output is written to `outputs/gpu_benchmark/torch_operator.csv`. It records each GPU separately, including iteration time, cases per second, peak allocated memory, and geometry-cache memory.
+The output is written to `outputs/gpu_benchmark/torch_operator.csv`. It records each GPU separately, including iteration time, batched fluence states per second, peak allocated memory, and geometry-cache memory. A batched state is not a complete case or trajectory.
 
 Only after 96-cubed succeeds should the 128-cubed sensitivity benchmark be attempted:
 

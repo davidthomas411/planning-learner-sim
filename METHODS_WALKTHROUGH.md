@@ -132,7 +132,7 @@ Each figure will link back to a tidy per-case results table so the displayed res
 
 ## Current boundary
 
-The nested 2D environment, matched endpoint/trajectory dataset builder, NumPy and optional batched PyTorch 3D implicit dose operators, automated inner optimizer, high-level manual trajectory, and pre-trajectory 10,000-case split manifest are now executable. Thirteen CPU validation tests pass, while three Torch-specific tests await an installation with PyTorch. The learner comparison and four-A100 benchmark have not started.
+The nested 2D environment, matched endpoint/trajectory dataset builder, NumPy and batched PyTorch 3D implicit dose operators, automated inner optimizer, high-level manual trajectory, and pre-trajectory 10,000-case split manifest are now executable. All 16 tests pass with CUDA-enabled Torch on the local RTX 4060. Complete 96-, 128-, 192-, and 256-cubed demonstration trajectories have run successfully; the learner comparison and four-A100 benchmark have not started.
 
 The earlier beamlet-action prototypes remain useful as validation history:
 

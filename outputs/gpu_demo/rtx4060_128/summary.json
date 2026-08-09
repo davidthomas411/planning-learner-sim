@@ -1,0 +1,19 @@
+{
+  "gpu": "NVIDIA GeForce RTX 4060",
+  "torch": "2.11.0+cu128",
+  "cuda_runtime": "12.8",
+  "grid_size": 128,
+  "fluence_size": 16,
+  "dtype": "float16",
+  "fluence_master_dtype": "float32",
+  "optimizer_iterations_per_state": 60,
+  "states": 5,
+  "elapsed_seconds": 8.619918000069447,
+  "peak_memory_mib": 573.71240234375,
+  "final_target_d95": 0.9116415977478027,
+  "final_target_d02": 1.2470465898513794,
+  "final_oar_mean_over_limit": [
+    0.6508843182498897,
+    0.7664854421782533
+  ]
+}

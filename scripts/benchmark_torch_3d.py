@@ -64,7 +64,7 @@ def _worker(payload: tuple[int, list[int], int, int, int, int, str]) -> list[dic
                 "dtype": dtype_name,
                 "mean_iteration_seconds": mean(elapsed),
                 "median_iteration_seconds": median(elapsed),
-                "cases_per_second": batch_size / mean(elapsed),
+                "batched_states_per_second": batch_size / mean(elapsed),
                 "peak_memory_mib": torch.cuda.max_memory_allocated(device) / 2**20,
                 "geometry_cache_mib": engine.cache_bytes / 2**20,
             }

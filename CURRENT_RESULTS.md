@@ -10,7 +10,8 @@ Verified against generated outputs on 2026-08-09.
 - A pre-trajectory 10,000-case split manifest containing 7,000 training, 1,000 validation, 1,000 IID-test, and 1,000 reserved OOD-test seeds. Its SHA-256 digest is `c9af78cd282846ee1410f9f688bbb3cb1b82294009560374e6b331310e269a2b`.
 - A reproducible 3D 64 x 64 x 64 anatomy generator, implicit dose operator, exact adjoint, automated fluence optimizer, and high-level manual trajectory demonstration.
 - An optional batched PyTorch 3D backend, differentiable inner optimizer, four-GPU benchmark script, and A100 server runbook.
-- Thirteen passing CPU tests covering reproducibility, dose linearity, optimizer masking, trajectory action integrity, dataset separation, split integrity, and 3D forward/adjoint consistency. Three additional Torch parity/batching tests are collected when PyTorch is installed; their module is skipped in the lightweight local environment.
+- A validated CUDA installation on the local RTX 4060, including successful complete trajectories from 96- through 256-cubed.
+- Sixteen passing tests with CUDA-enabled Torch, including NumPy/PyTorch forward and adjoint parity, batched-state agreement, and inactive-beam masking.
 
 ## 2D manual-planning pilot
 
@@ -71,6 +72,8 @@ The CPU reference benchmark uses 12 beams with 8 x 8 fluence maps:
 One complete five-state, 60-iteration-per-state 64-cubed demonstration took 17.7 seconds in the latest full run. Timing varies slightly between runs; the earlier run took approximately 15 seconds.
 
 For the proposed 96-cubed main environment with 16 x 16 fluence maps, a dense float32 influence matrix would be about 10.1 GiB per case. The implicit forward/adjoint design is therefore required. The batched PyTorch implementation and concurrent four-GPU benchmark entry point are ready, but the four A100 GPUs have not yet been benchmarked because server access has not been configured here.
+
+The local RTX 4060 completes the full five-state 96-cubed trajectory in 4.26 seconds and the 128-cubed trajectory in 8.62 seconds. It also completes 192-cubed in 28.15 seconds and 256-cubed in 140.95 seconds; all four final states pass the provisional constraints. Detailed memory, quality, and batching measurements are in `LOCAL_GPU_RESULTS.md`.
 
 ## Present interpretation
 

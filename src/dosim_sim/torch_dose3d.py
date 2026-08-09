@@ -85,6 +85,13 @@ class TorchImplicitDoseEngine3D:
             )
 
         self.body_flat = torch.as_tensor(body_flat_np, device=self.device)
+        self.target_flat = torch.as_tensor(
+            np.flatnonzero(case.target.ravel()).astype(np.int64), device=self.device
+        )
+        self.oar_flat = tuple(
+            torch.as_tensor(np.flatnonzero(mask.ravel()).astype(np.int64), device=self.device)
+            for mask in case.oars
+        )
         self.u0 = torch.as_tensor(np.stack([item[0] for item in maps]), device=self.device)
         self.v0 = torch.as_tensor(np.stack([item[1] for item in maps]), device=self.device)
         self.du = torch.as_tensor(
@@ -103,7 +110,16 @@ class TorchImplicitDoseEngine3D:
 
     @property
     def cache_bytes(self) -> int:
-        tensors = (self.body_flat, self.u0, self.v0, self.du, self.dv, self.attenuation)
+        tensors = (
+            self.body_flat,
+            self.target_flat,
+            *self.oar_flat,
+            self.u0,
+            self.v0,
+            self.du,
+            self.dv,
+            self.attenuation,
+        )
         return int(sum(value.numel() * value.element_size() for value in tensors))
 
     def _corner_indices(self) -> tuple["torch.Tensor", ...]:
@@ -182,18 +198,20 @@ class TorchImplicitDoseEngine3D:
 
 
 def _torch_loss(
-    case: SyntheticCase3D,
+    engine: TorchImplicitDoseEngine3D,
     dose: "torch.Tensor",
     priorities: PlanningPriorities,
 ) -> "torch.Tensor":
-    device = dose.device
-    target = torch.as_tensor(case.target, device=device)
-    target_values = dose[target]
+    case = engine.case
+    flat_dose = dose.reshape(-1)
+    target_values = flat_dose.index_select(0, engine.target_flat)
     target_under = torch.relu(1.0 - target_values)
     loss = priorities.target * 20.0 * torch.mean(target_under.square())
     loss = loss + priorities.hotspot * 5.0 * torch.mean(torch.relu(target_values - 1.10).square())
-    for mask, limit, priority in zip(case.oars, case.oar_limits, priorities.oars, strict=True):
-        values = dose[torch.as_tensor(mask, device=device)]
+    for indices, limit, priority in zip(
+        engine.oar_flat, case.oar_limits, priorities.oars, strict=True
+    ):
+        values = flat_dose.index_select(0, indices)
         loss = loss + priority * 5.0 * torch.mean(torch.relu(values - limit).square())
     return loss
 
@@ -220,17 +238,21 @@ def optimize_fluence_3d_torch(
             shape,
             0.20 / len(active_beams),
             device=engine.device,
-            dtype=engine.dtype,
+            dtype=torch.float32,
         )
     else:
-        fluence = initial_fluence.detach().to(device=engine.device, dtype=engine.dtype).clone()
+        # Keep master fluence and Adam moments in FP32 even when the cached
+        # geometry uses FP16/BF16. Pure FP16 Adam can underflow its epsilon.
+        fluence = initial_fluence.detach().to(device=engine.device, dtype=torch.float32).clone()
     fluence[~active] = 0.0
     fluence.requires_grad_(True)
-    optimizer = torch.optim.Adam([fluence], lr=learning_rate)
-    for _ in range(iterations):
+    optimizer = torch.optim.Adam([fluence], lr=learning_rate, eps=1e-7)
+    for step in range(iterations):
         optimizer.zero_grad(set_to_none=True)
         dose = engine.forward(fluence)
-        loss = _torch_loss(case, dose, priorities) + 0.0005 * torch.mean(fluence.square())
+        loss = _torch_loss(engine, dose, priorities) + 0.0005 * torch.sum(fluence.square())
+        if not bool(torch.isfinite(loss)):
+            raise FloatingPointError(f"Non-finite 3D optimization loss at iteration {step + 1}")
         loss.backward()
         if fluence.grad is not None:
             fluence.grad[~active] = 0.0
@@ -240,7 +262,7 @@ def optimize_fluence_3d_torch(
             fluence[~active] = 0.0
     with torch.no_grad():
         dose = engine.forward(fluence)
-        final_loss = float(_torch_loss(case, dose, priorities).item())
+        final_loss = float(_torch_loss(engine, dose, priorities).item())
         dose_numpy = dose.detach().float().cpu().numpy()
         metrics = evaluate_plan_3d(case, dose_numpy, final_loss)
     return TorchOptimizedPlan3D(

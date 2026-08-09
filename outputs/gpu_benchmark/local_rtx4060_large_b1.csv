@@ -1,0 +1,3 @@
+device,gpu_name,grid_size,batch_size,fluence_size,dtype,mean_iteration_seconds,median_iteration_seconds,batched_states_per_second,peak_memory_mib,geometry_cache_mib
+0,NVIDIA GeForce RTX 4060,192,1,16,float16,0.09929899999406189,0.09905710001476109,10.070594870641198,1806.18505859375,289.25677490234375
+0,NVIDIA GeForce RTX 4060,256,1,16,float16,0.2651148666627705,0.26545329997316003,3.7719499196248876,4300.36865234375,688.3605346679688
