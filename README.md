@@ -6,6 +6,7 @@ The latest verified measurements and their interpretation are summarized in [`CU
 Instructions for validating and benchmarking the optional PyTorch backend on the four-A100 server are in [`GPU_SERVER.md`](GPU_SERVER.md).
 The prespecified case assignments are in [`outputs/splits/case_split_manifest.csv`](outputs/splits/case_split_manifest.csv); they contain no trajectory or outcome fields.
 Measured RTX 4060 results through 256-cubed are summarized in [`LOCAL_GPU_RESULTS.md`](LOCAL_GPU_RESULTS.md).
+The protocol-stage Medical Physics manuscript is in `paper/planning_trajectory_manuscript_draft.docx`; its Results section is intentionally reserved until the experimental specification and analysis are frozen.
 
 ## What exists now
 
@@ -74,6 +75,14 @@ To reproduce the resolution benchmark:
 ```
 
 The current CPU forward-plus-adjoint timings are approximately 0.043, 0.297, and 0.707 seconds per optimization iteration at 64-, 96-, and 128-cubed. These are kernel timings, not complete trajectory times, and the A100 implementation should be benchmarked directly before scheduling the main run.
+
+To reproduce the initial 96-cubed environment calibration:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_3d_calibration.py --cases 12 --grid-size 96 --fluence-size 16 --iterations 60 --device cuda:0
+```
+
+This calibration applies only high-level beam-angle and named-priority changes. Fluence optimization remains an automated inner calculation and is not recorded as a planner action.
 
 ## Run validation tests
 

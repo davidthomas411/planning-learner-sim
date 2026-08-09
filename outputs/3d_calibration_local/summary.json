@@ -1,0 +1,20 @@
+{
+  "status": "engineering calibration; not a learner comparison",
+  "gpu": "NVIDIA GeForce RTX 4060",
+  "torch": "2.11.0+cu128",
+  "grid_size": 96,
+  "fluence_size": 16,
+  "iterations_per_state": 60,
+  "cases": 12,
+  "states_per_case": 5,
+  "high_level_actions_per_case": 4,
+  "elapsed_seconds": 58.0727153000189,
+  "seconds_per_case": 4.839392941668241,
+  "peak_memory_mib": 239.23486328125,
+  "initial_acceptable_rate": 0.5833333333333334,
+  "final_acceptable_rate": 1.0,
+  "median_initial_d95": 0.898524671792984,
+  "median_final_d95": 0.919144868850708,
+  "median_initial_max_oar_ratio": 0.9068909583094282,
+  "median_final_max_oar_ratio": 0.7610032853860329
+}

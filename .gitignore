@@ -23,3 +23,5 @@ wandb/
 # Temporary files
 *.tmp
 *.log
+.docx_review/
+LibreOffice_*_Machine_X64_msi_en-US/
