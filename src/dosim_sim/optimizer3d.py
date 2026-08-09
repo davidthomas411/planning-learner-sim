@@ -40,6 +40,17 @@ def _loss_and_dose_gradient(
     loss = priorities.target * 20.0 * float(np.mean(target_under**2))
     gradient[case.target] -= priorities.target * 40.0 * target_under / target_values.size
 
+    # A lower-tail coverage term aligns the numerical objective with D95.
+    # It acts on the 10% most underdosed target voxels and remains a property
+    # of the automated inner optimizer, not a manual planning action.
+    tail_count = max(1, int(np.ceil(0.10 * target_values.size)))
+    tail_indices = np.argpartition(target_under, -tail_count)[-tail_count:]
+    tail_under = target_under[tail_indices]
+    loss += priorities.target * 30.0 * float(np.mean(tail_under**2))
+    target_gradient = gradient[case.target]
+    target_gradient[tail_indices] -= priorities.target * 60.0 * tail_under / tail_count
+    gradient[case.target] = target_gradient
+
     hot = np.maximum(target_values - 1.10, 0.0)
     loss += priorities.hotspot * 5.0 * float(np.mean(hot**2))
     gradient[case.target] += priorities.hotspot * 10.0 * hot / target_values.size
@@ -60,6 +71,14 @@ def evaluate_plan_3d(case: SyntheticCase3D, dose: FloatArray, loss: float) -> Pl
         target_d02=float(np.percentile(target_values, 98)),
         oar_mean=tuple(float(np.mean(dose[mask])) for mask in case.oars),
     )
+
+
+def objective_value_3d(case: SyntheticCase3D, dose: FloatArray) -> float:
+    """Evaluate every plan with one fixed, priority-independent objective."""
+
+    neutral = PlanningPriorities.for_case(case)
+    value, _ = _loss_and_dose_gradient(case, np.asarray(dose, dtype=np.float32), neutral)
+    return float(value)
 
 
 def optimize_fluence_3d(

@@ -1,0 +1,6 @@
+seed,difficulty,shallow_violation,deep_acceptable,deep_violation,manual_actions,actions,stopping_reason
+17011,moderate,0.012710013168122813,True,0.0,5,add_beam|add_beam|remove_beam|increase_hotspot_priority|increase_hotspot_priority,acceptable
+17016,moderate,0.007647514343261719,True,0.0,8,increase_oar_priority|increase_oar_priority|increase_hotspot_priority|increase_hotspot_priority|add_beam|remove_beam|remove_beam|add_beam,acceptable
+17019,moderate,0.013434123992919923,True,0.0,8,add_beam|increase_oar_priority|increase_oar_priority|increase_hotspot_priority|increase_oar_priority|increase_hotspot_priority|add_beam|add_beam,acceptable
+17022,hard,0.04764251708984375,True,0.0,7,add_beam|add_beam|increase_oar_priority|increase_oar_priority|increase_hotspot_priority|add_beam|increase_hotspot_priority,acceptable
+17028,hard,0.03823809971784549,True,0.0,10,add_beam|add_beam|add_beam|increase_oar_priority|add_beam|increase_hotspot_priority|increase_oar_priority|increase_oar_priority|remove_beam|increase_hotspot_priority,acceptable

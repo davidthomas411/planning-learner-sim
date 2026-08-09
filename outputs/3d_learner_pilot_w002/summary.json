@@ -1,0 +1,21 @@
+{
+  "status": "pipeline and memorization pilot; not the primary iterative-policy comparison",
+  "same_architecture_and_parameter_count": true,
+  "parameter_count": 31156,
+  "same_optimizer_updates": true,
+  "cases": 32,
+  "training_cases_for_heldout_check": 24,
+  "heldout_cases": 8,
+  "seeds": 3,
+  "epochs_per_fit": 1200,
+  "endpoint_overfit_setting_mae_mean": 0.0008737951672325531,
+  "trajectory_overfit_setting_mae_mean": 0.0005104125011712313,
+  "trajectory_action_accuracy_mean": 1.0,
+  "endpoint_heldout_setting_mae_mean": 0.09798424442609151,
+  "trajectory_heldout_setting_mae_mean": 0.11062558243672053,
+  "paired_heldout_difference_trajectory_minus_endpoint": [
+    0.011823438107967377,
+    0.009849697351455688,
+    0.01625087857246399
+  ]
+}

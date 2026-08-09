@@ -1,0 +1,17 @@
+{
+  "status": "matched development dataset; not a learner result",
+  "attempted": 41,
+  "retained": 32,
+  "elapsed_seconds": 317.772525700042,
+  "case_ids_identical": true,
+  "endpoint_contains_trajectory_key": false,
+  "feature_count": 61,
+  "final_setting_count": 17,
+  "transition_count": 93,
+  "retained_by_difficulty": {
+    "easy": 14,
+    "moderate": 13,
+    "hard": 5
+  },
+  "reference_acceptable_among_retained": 1.0
+}

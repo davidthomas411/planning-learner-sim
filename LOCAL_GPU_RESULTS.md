@@ -22,7 +22,7 @@ This local environment override is intentionally not encoded as a mandatory proj
 
 ## Correctness
 
-All 16 tests pass with CUDA-enabled Torch installed. The additional tests compare PyTorch forward dose and adjoint values with the NumPy reference, verify batched and individual evaluations agree, and confirm inactive beams remain exactly zero.
+All 18 tests pass with CUDA-enabled Torch installed. The additional tests compare PyTorch forward dose and adjoint values with the NumPy reference, verify batched and individual evaluations agree, confirm inactive beams remain exactly zero, verify difficulty-stratified geometry generation, and restrict recorded 3D planning to the declared high-level action vocabulary.
 
 The first pure-float16 full optimization produced NaNs because Adam's optimizer state was also float16. The implementation now uses the normal mixed-precision pattern: float16 cached geometry with float32 master fluence and optimizer moments. A finite-loss guard stops any future non-finite trajectory immediately.
 
@@ -59,3 +59,5 @@ The local RTX 4060 is sufficient for:
 - targeted 192-cubed and even 256-cubed demonstrations.
 
 At the measured sequential 96-cubed rate, 10,000 copies of this fixed five-state trajectory would take approximately 11.8 GPU-hours. The high-level search oracle evaluates many alternative action sequences, so full expert-dataset generation will take materially longer unless candidate states and independent cases are batched. The four-A100 server remains valuable for oracle search, repeated learner training seeds, and ablations, but it is no longer required to continue local model and environment development.
+
+The revised two-stage 32-cubed dataset pilot retained 32 demonstrations from 42 attempts in 311.9 seconds, or 7.43 seconds per attempted case, including reference solves and deeper search for selected failures. Linear extrapolation at this development resolution is approximately 37 minutes for 300 attempted cases and 20.6 hours for 10,000 attempted cases on one RTX 4060. These are scheduling bounds rather than a 96-cubed projection; the four-A100 benchmark and a complete 96-cubed two-stage case timing are required before estimating the primary run.

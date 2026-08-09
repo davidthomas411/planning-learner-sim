@@ -1,0 +1,10 @@
+seed,case_id,difficulty,n_oars,target_oar_overlap_fraction,initial_acceptable,search_acceptable,reference_acceptable,initial_violation,search_violation,reference_violation,manual_actions,actions,stopping_reason,search_objective,reference_objective,canonical_objective_gap
+13000,synthetic3d-013000,easy,1,0.0,False,True,True,0.10263692631441002,0.0,0.0,1,increase_target_priority,acceptable,0.03092572518653469,0.0011057729727781407,26.967517698354477
+13001,synthetic3d-013001,easy,1,0.0,False,True,True,0.06464254154878502,0.0,0.0,1,increase_target_priority,acceptable,0.00902227417100221,0.002315743498684242,2.8960593762342337
+13002,synthetic3d-013002,easy,1,0.0,False,True,True,0.04027595239527083,0.0,0.0,1,increase_target_priority,acceptable,0.003308906525489874,0.0005242169982011546,5.312093153873975
+13003,synthetic3d-013003,moderate,2,0.0013850415512465374,False,True,True,0.20574119351328718,0.0,0.0,3,add_beam|increase_oar_priority|add_beam,acceptable,0.13678705494385213,0.12032211699988693,0.1368404941211321
+13004,synthetic3d-013004,moderate,2,0.0,True,True,True,0.0,0.0,0.0,0,,acceptable,0.12959911779034883,0.04836623804294504,1.6795368636129195
+13005,synthetic3d-013005,moderate,2,0.05454545454545454,False,True,True,0.3820798740467455,0.0,0.0,4,add_beam|add_beam|add_beam|add_beam,acceptable,0.16600540257059038,0.16372222627978772,0.01394542660872995
+13006,synthetic3d-013006,hard,3,0.0,False,True,True,0.3003461748370459,0.0,0.0,2,add_beam|increase_oar_priority,acceptable,0.20213209762005135,0.09285956912208349,1.1767503288143206
+13007,synthetic3d-013007,hard,3,0.012953367875647668,False,True,True,0.9423336798867367,0.0,0.0,2,add_beam|add_beam,acceptable,0.2104490112833446,0.2480250822554808,-0.15150109267348452
+13008,synthetic3d-013008,hard,3,0.0972644376899696,False,True,False,1.1881194819169225,0.0,0.002643491714077184,6,add_beam|increase_oar_priority|add_beam|remove_beam|increase_target_priority|add_beam,acceptable,0.39792576149920933,0.37450989216154085,0.06252403428523672

@@ -11,7 +11,7 @@ Verified against generated outputs on 2026-08-09.
 - A reproducible 3D 64 x 64 x 64 anatomy generator, implicit dose operator, exact adjoint, automated fluence optimizer, and high-level manual trajectory demonstration.
 - An optional batched PyTorch 3D backend, differentiable inner optimizer, four-GPU benchmark script, and A100 server runbook.
 - A validated CUDA installation on the local RTX 4060, including successful complete trajectories from 96- through 256-cubed.
-- Sixteen passing tests with CUDA-enabled Torch, including NumPy/PyTorch forward and adjoint parity, batched-state agreement, and inactive-beam masking.
+- Eighteen passing tests with CUDA-enabled Torch, including NumPy/PyTorch forward and adjoint parity, batched-state agreement, inactive-beam masking, difficulty-stratified geometry generation, and high-level action integrity.
 
 ## 2D manual-planning pilot
 
@@ -85,6 +85,18 @@ The local RTX 4060 completes the full five-state 96-cubed trajectory in 4.26 sec
 
 ## Present interpretation
 
-The experiment mechanics are now demonstrated in both 2D and 3D. The current evidence shows that high-level beam/priority trajectories can be represented, reproduced, optimized, and audited. It does not yet answer the primary scientific question, because endpoint-only and trajectory-supervised learners have not been trained and compared on a frozen dataset.
+The experiment mechanics are now demonstrated in both 2D and 3D. The current evidence shows that high-level beam/priority trajectories can be represented, reproduced, optimized, and audited. It does not answer the primary scientific question. The only learner comparison to date is a small pipeline check, not the prespecified iterative-policy experiment.
 
-The next compute milestone is the direct four-A100 correctness and throughput run described in `GPU_SERVER.md`. The next scientific milestone is environment calibration followed by a frozen expert dataset and matched learner pilot.
+## Revised 3D validation and matched learner pilot
+
+The revised target objective includes an additional lower-tail coverage term acting on the 10% most underdosed target voxels. Controlled priority tests compare each perturbed continuation with a neutral continuation of equal length from the same initial fluence. At 64 cubed with 200 continuation iterations, all 12 stratified target-priority perturbations increased PTV D95 and all 12 named-OAR perturbations decreased the selected OAR mean dose. All 100 generated geometries were exactly reproducible. Median target D95 change was +0.0106 and median named-OAR mean-dose change was -0.0133.
+
+In an independent 30-case 32-cubed reachability audit, the routine bounded search reached 17 of 22 reference-reachable cases. A deeper high-level audit recovered the five residual cases, yielding 22 of 22 coverage among reference-reachable cases. Eight cases, including eight of ten hard cases, were not reached by the reference optimizer and were not treated as demonstration failures.
+
+The regenerated matched dataset retained 32 acceptable demonstrations from 42 attempts in 311.9 seconds on the local RTX 4060. It contains 14 easy, 13 moderate, and 5 hard cases and 118 labeled transitions. Endpoint and trajectory views contain identical case identifiers and final targets; the endpoint records contain no trajectory field. Every retained case was acceptable to the independent reference check. One reference-reachable hard case was not recovered within the dataset search budget and remains in the failure manifest.
+
+The 32-case network check used identical 31,156-parameter models and identical optimizer-update counts. Both conditions memorized the development set. Across five seeds on a fixed 24-case training and 8-case held-out split, endpoint-only mean final-setting MAE was 0.0870 and trajectory-supervised mean MAE was 0.0884. Trajectory supervision was better in two of five seeds. This result is inconclusive and is not the primary iterative closed-loop comparison.
+
+## Current decision
+
+Environment and demonstration mechanics have passed their current engineering checks. The comparison gate remains open because closed-loop rollout evaluation, action-mask parity, and the 300-case variance pilot are not complete. The multi-day 10,000-case study should not begin until those items pass. The next compute milestone is the direct four-A100 correctness and throughput run described in `GPU_SERVER.md`, followed by a 300-case training/validation pilot using the frozen closed-loop comparison.

@@ -67,3 +67,9 @@ uv run python scripts/benchmark_torch_3d.py \
 ## 5. Interpretation
 
 The benchmark times one differentiable forward-plus-backward iteration. It does not directly equal cases per second for dataset generation because a trajectory contains multiple optimizer iterations and several human-level states. Use the measured iteration time to choose batch size and then time a complete trajectory before projecting the full dataset schedule.
+
+## 6. Required preflight before the 300-case pilot
+
+Run the 100-case environment validation and the 30-case two-stage search audit on one A100 before distributing jobs. Then time at least 30 complete 96-cubed attempted cases, including reference solves and deep-search failures. Record median, 90th percentile, and total seconds per attempted and retained case. Use those measurements, rather than operator-kernel throughput, to project the 300-case and 10,000-case schedules.
+
+The local 32-cubed two-stage pilot required 311.9 seconds for 42 attempted cases (7.43 seconds per attempt). This projects to approximately 37 minutes for 300 attempts or 20.6 hours for 10,000 attempts on one RTX 4060 at development resolution. It is not a valid A100 or 96-cubed estimate. With four A100s, cases should be sharded by seed so that each process owns one GPU and writes a separate manifest shard; shards should be merged only after duplicate-case and completeness checks.

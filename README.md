@@ -116,6 +116,23 @@ The oracle uses the same high-level action library but evaluates several plausib
 
 The latest 12-case diagnostic is preserved in `outputs/oracle_pilot_v2/`, including a cohort comparison and a same-case manual-versus-oracle decision sequence.
 
+## Validate the revised 3D environment
+
+```powershell
+uv run --extra gpu python scripts/validate_3d_environment.py --cases 100 --response-cases 12 --grid-size 64 --iterations 200 --device cuda:0 --output-dir outputs/3d_environment_validation_v4
+```
+
+The controlled test compares target- and named-OAR-weight perturbations with neutral continuations of equal length from the same fluence state. The current run produced the expected response in all 12 stratified cases for both controls.
+
+## Audit bounded high-level search
+
+```powershell
+uv run --extra gpu python scripts/run_3d_search_pilot.py --cases-per-stratum 10 --grid-size 32 --fluence-size 8 --max-steps 6 --beam-width 3 --output-dir outputs/3d_search_pilot_revised_30_shallow
+uv run --extra gpu python scripts/audit_3d_search_failures.py outputs/3d_search_pilot_revised_30_shallow/case_metrics.csv --grid-size 32 --iterations 40 --max-steps 10 --beam-width 4 --output-dir outputs/3d_search_failure_audit_revised
+```
+
+Both stages change only beam membership or named target, hot-spot, and OAR priorities. The deeper stage is restricted to routine-search failures that the independent reference solver can reach.
+
 ## Build a matched endpoint/trajectory dataset pilot
 
 ```powershell

@@ -1,0 +1,7 @@
+{
+  "audited_failures": 5,
+  "recovered": 5,
+  "elapsed_seconds": 111.05991000006907,
+  "reference_reachable_cases": 22,
+  "combined_search_coverage_among_reference_reachable": 1.0
+}

@@ -207,6 +207,9 @@ def _torch_loss(
     target_values = flat_dose.index_select(0, engine.target_flat)
     target_under = torch.relu(1.0 - target_values)
     loss = priorities.target * 20.0 * torch.mean(target_under.square())
+    tail_count = max(1, int(np.ceil(0.10 * target_values.numel())))
+    tail_under = torch.topk(target_under, k=tail_count, largest=True).values
+    loss = loss + priorities.target * 30.0 * torch.mean(tail_under.square())
     loss = loss + priorities.hotspot * 5.0 * torch.mean(torch.relu(target_values - 1.10).square())
     for indices, limit, priority in zip(
         engine.oar_flat, case.oar_limits, priorities.oars, strict=True

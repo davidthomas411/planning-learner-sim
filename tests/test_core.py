@@ -150,3 +150,18 @@ def test_3d_inner_optimizer_respects_active_beams() -> None:
     )
     assert np.any(plan.fluence[[0, 2]] > 0)
     assert np.all(plan.fluence[[1, 3]] == 0)
+
+
+def test_3d_difficulty_generator_is_reproducible_and_stratified() -> None:
+    easy = generate_case_3d(77, grid_size=32, difficulty="easy")
+    hard = generate_case_3d(77, grid_size=32, difficulty="hard")
+    hard_repeat = generate_case_3d(77, grid_size=32, difficulty="hard")
+    assert len(easy.oars) == 1
+    assert len(hard.oars) == 3
+    assert len(hard.available_beams) == 10
+    assert np.array_equal(hard.target, hard_repeat.target)
+    assert hard.available_beams == hard_repeat.available_beams
+    easy_overlap = sum(np.count_nonzero(easy.target & mask) for mask in easy.oars)
+    hard_overlap = sum(np.count_nonzero(hard.target & mask) for mask in hard.oars)
+    assert easy_overlap == 0
+    assert hard_overlap > 0

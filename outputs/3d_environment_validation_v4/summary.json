@@ -1,0 +1,22 @@
+{
+  "status": "Gate A environment validation",
+  "generated_cases": 100,
+  "all_cases_reproducible": true,
+  "invalid_cases": 0,
+  "difficulty_counts": {
+    "easy": 34,
+    "moderate": 33,
+    "hard": 33
+  },
+  "median_overlap_by_difficulty": {
+    "easy": 0.0,
+    "moderate": 0.008771929824561403,
+    "hard": 0.060034305317324184
+  },
+  "priority_response_cases": 12,
+  "target_weight_increased_d95_fraction": 1.0,
+  "median_target_d95_change": 0.010562211275100708,
+  "oar_weight_reduced_named_oar_mean_fraction": 1.0,
+  "median_named_oar_mean_change": -0.013254135847091675,
+  "priority_response_elapsed_seconds": 36.384840599959716
+}

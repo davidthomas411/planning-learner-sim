@@ -9,8 +9,23 @@ from .objective import PlanningPriorities, clinical_violation_score, evaluate_pl
 from .oracle import OracleTrajectory, run_high_level_oracle
 from .optimizer import OptimizedPlan, optimize_beamlets
 from .dose3d import ImplicitDoseEngine3D
-from .optimizer3d import OptimizedPlan3D, PlanMetrics3D, evaluate_plan_3d, optimize_fluence_3d
+from .optimizer3d import (
+    OptimizedPlan3D,
+    PlanMetrics3D,
+    evaluate_plan_3d,
+    objective_value_3d,
+    optimize_fluence_3d,
+)
 from .volume3d import SyntheticCase3D, generate_case_3d
+from .planning3d import (
+    HighLevelSearchConfig3D,
+    PlanningStep3D,
+    PlanningTrajectory3D,
+    clinical_violation_score_3d,
+    is_acceptable_3d,
+    run_high_level_search_3d,
+    run_reference_optimizer_3d,
+)
 from .splits import SplitConfig, SplitRow, build_split_rows, split_manifest_sha256
 
 try:
@@ -37,6 +52,13 @@ __all__ = [
     "OptimizedPlan3D",
     "PlanMetrics3D",
     "SyntheticCase3D",
+    "HighLevelSearchConfig3D",
+    "PlanningStep3D",
+    "PlanningTrajectory3D",
+    "clinical_violation_score_3d",
+    "is_acceptable_3d",
+    "run_high_level_search_3d",
+    "run_reference_optimizer_3d",
     "SplitConfig",
     "SplitRow",
     "TorchImplicitDoseEngine3D",
@@ -49,6 +71,7 @@ __all__ = [
     "generate_case_3d",
     "optimize_beamlets",
     "optimize_fluence_3d",
+    "objective_value_3d",
     "optimize_fluence_3d_torch",
     "evaluate_plan_3d",
     "run_greedy_expert",

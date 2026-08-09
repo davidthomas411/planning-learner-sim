@@ -1,0 +1,29 @@
+{
+  "status": "engineering search pilot; not a learner comparison",
+  "gpu": "NVIDIA GeForce RTX 4060",
+  "grid_size": 64,
+  "fluence_size": 8,
+  "cases": 30,
+  "elapsed_seconds": 134.3521792999236,
+  "seconds_per_case": 4.47840597666412,
+  "peak_memory_mib": 105.49560546875,
+  "search_acceptable_rate": 0.7,
+  "reference_acceptable_rate": 0.7666666666666667,
+  "by_difficulty": {
+    "easy": {
+      "search_acceptable_rate": 1.0,
+      "reference_acceptable_rate": 1.0,
+      "median_search_violation": 0.0
+    },
+    "moderate": {
+      "search_acceptable_rate": 0.8,
+      "reference_acceptable_rate": 0.9,
+      "median_search_violation": 0.0
+    },
+    "hard": {
+      "search_acceptable_rate": 0.3,
+      "reference_acceptable_rate": 0.4,
+      "median_search_violation": 0.08742030824023724
+    }
+  }
+}

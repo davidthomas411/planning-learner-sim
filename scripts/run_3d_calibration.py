@@ -41,7 +41,12 @@ def _select_separating_beam(case: SyntheticCase3D, oar_index: int, active: tuple
 
 
 def run_case(seed: int, args, dtype: torch.dtype) -> dict[str, object]:
-    case = generate_case_3d(seed, args.grid_size)
+    difficulty = (
+        ("easy", "moderate", "hard")[(seed - args.seed_start) % 3]
+        if args.difficulty == "mixed"
+        else args.difficulty
+    )
+    case = generate_case_3d(seed, args.grid_size, difficulty=difficulty)
     engine = TorchImplicitDoseEngine3D(
         case,
         ANGLES,
@@ -126,6 +131,13 @@ def run_case(seed: int, args, dtype: torch.dtype) -> dict[str, object]:
     return {
         "seed": seed,
         "case_id": case.case_id,
+        "difficulty": case.difficulty,
+        "n_oars": len(case.oars),
+        "target_oar_overlap_fraction": float(
+            sum(np.count_nonzero(case.target & mask) for mask in case.oars)
+            / max(np.count_nonzero(case.target), 1)
+        ),
+        "available_beams": "|".join(str(value) for value in case.available_beams),
         "initial_d95": initial.target_d95,
         "final_d95": final.target_d95,
         "initial_d02": initial.target_d02,
@@ -184,6 +196,9 @@ def main() -> None:
     parser.add_argument("--fluence-size", type=int, default=16)
     parser.add_argument("--iterations", type=int, default=60)
     parser.add_argument("--priority-factor", type=float, default=1.75)
+    parser.add_argument(
+        "--difficulty", choices=["easy", "moderate", "hard", "mixed"], default="mixed"
+    )
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--dtype", choices=["float16", "bfloat16", "float32"], default="float16")
     parser.add_argument("--output-dir", type=Path, default=Path("outputs/3d_calibration_local"))
@@ -218,6 +233,10 @@ def main() -> None:
         "fluence_size": args.fluence_size,
         "iterations_per_state": args.iterations,
         "cases": len(rows),
+        "difficulty_counts": {
+            difficulty: sum(row["difficulty"] == difficulty for row in rows)
+            for difficulty in ("easy", "moderate", "hard")
+        },
         "states_per_case": 5,
         "high_level_actions_per_case": 4,
         "elapsed_seconds": elapsed,
@@ -229,6 +248,19 @@ def main() -> None:
         "median_final_d95": float(np.median([float(row["final_d95"]) for row in rows])),
         "median_initial_max_oar_ratio": float(np.median([float(row["initial_max_oar_ratio"]) for row in rows])),
         "median_final_max_oar_ratio": float(np.median([float(row["final_max_oar_ratio"]) for row in rows])),
+        "final_acceptable_rate_by_difficulty": {
+            difficulty: float(
+                np.mean(
+                    [
+                        bool(row["final_acceptable"])
+                        for row in rows
+                        if row["difficulty"] == difficulty
+                    ]
+                )
+            )
+            for difficulty in ("easy", "moderate", "hard")
+            if any(row["difficulty"] == difficulty for row in rows)
+        },
     }
     (args.output_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print(json.dumps(summary, indent=2))
