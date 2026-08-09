@@ -79,10 +79,10 @@ The local 32-cubed two-stage pilot required 311.9 seconds for 42 attempted cases
 Generate training and validation data from the existing split manifest. Each process owns a nonoverlapping ordinal interval; no process samples replacement seeds. A representative four-process launch is:
 
 ```bash
-uv run python scripts/build_3d_dataset_pilot.py --split-manifest outputs/splits/case_split_manifest.csv --split train --start-ordinal 0   --max-attempts 100 --retained-cases 60 --device cuda:0 --output-dir outputs/pilot300/train_shard0 &
-uv run python scripts/build_3d_dataset_pilot.py --split-manifest outputs/splits/case_split_manifest.csv --split train --start-ordinal 100 --max-attempts 100 --retained-cases 60 --device cuda:1 --output-dir outputs/pilot300/train_shard1 &
-uv run python scripts/build_3d_dataset_pilot.py --split-manifest outputs/splits/case_split_manifest.csv --split train --start-ordinal 200 --max-attempts 100 --retained-cases 60 --device cuda:2 --output-dir outputs/pilot300/train_shard2 &
-uv run python scripts/build_3d_dataset_pilot.py --split-manifest outputs/splits/case_split_manifest.csv --split validation --start-ordinal 0 --max-attempts 120 --retained-cases 60 --device cuda:3 --output-dir outputs/pilot300/validation_shard0 &
+uv run python scripts/build_3d_dataset_pilot.py --split-manifest outputs/splits/case_split_manifest.csv --split train --start-ordinal 0   --max-attempts 120 --retained-cases 80 --fluence-size 8 --device cuda:0 --output-dir outputs/pilot300/train_shard0 &
+uv run python scripts/build_3d_dataset_pilot.py --split-manifest outputs/splits/case_split_manifest.csv --split train --start-ordinal 120 --max-attempts 120 --retained-cases 80 --fluence-size 8 --device cuda:1 --output-dir outputs/pilot300/train_shard1 &
+uv run python scripts/build_3d_dataset_pilot.py --split-manifest outputs/splits/case_split_manifest.csv --split train --start-ordinal 240 --max-attempts 120 --retained-cases 80 --fluence-size 8 --device cuda:2 --output-dir outputs/pilot300/train_shard2 &
+uv run python scripts/build_3d_dataset_pilot.py --split-manifest outputs/splits/case_split_manifest.csv --split validation --start-ordinal 0 --max-attempts 120 --retained-cases 60 --fluence-size 8 --device cuda:3 --output-dir outputs/pilot300/validation_shard0 &
 wait
 ```
 

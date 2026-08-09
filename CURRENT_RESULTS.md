@@ -113,7 +113,24 @@ This result demonstrates a matched, reproducible comparison path and supports pr
 
 ## Current decision
 
-Environment, demonstration, shared rollout, action-mask parity, and the primary iterative comparator have passed their current engineering checks. The comparison remains a development result until the prespecified 300-case variance pilot is complete. The multi-day 10,000-case study should not begin before that pilot. The next compute milestone is the direct four-A100 correctness and throughput run described in `GPU_SERVER.md`, followed by a 300-case training/validation pilot drawn only from the frozen split manifest.
+Environment, demonstration, shared rollout, action-mask parity, and the primary iterative comparator have passed their current engineering checks. The 300-case dataset-generation stage is complete, but the matched learner variance analysis has not yet been run on it. The multi-day 10,000-case study should not begin before that learner pilot. The next compute milestone is the direct four-A100 correctness and throughput run described in `GPU_SERVER.md`, followed by matched training on the frozen 240/60 dataset.
+
+## Local 300-case train/validation dataset
+
+The development-resolution variance-pilot dataset was generated from the frozen split manifest with 8 x 8 fluence maps. It contains 240 training cases and 60 validation cases retained from 405 attempted cases. The endpoint and trajectory views contain exactly the same case identifiers, settings, and terminal states; only the trajectory view contains intermediate high-level actions. No training case appears in validation.
+
+| Difficulty | Attempted | Retained | Retention rate |
+|---|---:|---:|---:|
+| Easy | 136 | 136 | 100.0% |
+| Moderate | 135 | 125 | 92.6% |
+| Hard | 134 | 39 | 29.1% |
+| All | 405 | 300 | 74.1% |
+
+The retained training partition contains 110 easy, 101 moderate, and 29 hard cases. Validation contains 26 easy, 24 moderate, and 10 hard cases. The median demonstration contained two high-level actions before stop, the mean contained 2.75, and the range was one to ten. Eight reference-reachable attempts were not recovered by bounded high-level search; demonstration coverage among reference-reachable attempts was therefore 97.4%. All retained demonstrations were acceptable and reference-acceptable.
+
+The canonical merged endpoint SHA-256 digest is `298e025e7c574d6d251647033b2cdc7de0dc03dc2c78abcd114c216c398f82dc`; the trajectory digest is `2f5172f6dfc79e88157119c762428a65a7ef817bcc60021ab2c7f97dd3f25c64`; and the complete attempt-manifest digest is `2ef0608fb190658c2cadf45d49e589114d384b1eff944157dd98079423d7d127`.
+
+An initial 4 x 4 fluence attempt retained only 21 of 120 validation cases, all easy, and was rejected before learner training. The corrected 8 x 8 representation restored moderate and hard cases. The remaining hard-case underrepresentation is retained as an observed property of the frozen generator and feasibility rules and must be reported in difficulty-stratified learner results.
 
 ## Angular delivery complexity pilot
 

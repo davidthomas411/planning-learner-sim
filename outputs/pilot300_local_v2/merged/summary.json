@@ -1,0 +1,33 @@
+{
+  "status": "validated merged train/validation dataset",
+  "shards": [
+    "outputs\\pilot300_local_v2\\train",
+    "outputs\\pilot300_local_v2\\validation"
+  ],
+  "retained_by_split": {
+    "train": 240,
+    "validation": 60
+  },
+  "attempted": 405,
+  "retained_by_difficulty": {
+    "easy": 136,
+    "moderate": 125,
+    "hard": 39
+  },
+  "attempted_by_difficulty": {
+    "easy": 136,
+    "moderate": 135,
+    "hard": 134
+  },
+  "retention_rate_by_difficulty": {
+    "easy": 1.0,
+    "moderate": 0.9259259259259259,
+    "hard": 0.291044776119403
+  },
+  "search_misses_among_reference_reachable": 8,
+  "mean_high_level_actions": 2.7466666666666666,
+  "median_high_level_actions": 2.0,
+  "endpoint_sha256": "298e025e7c574d6d251647033b2cdc7de0dc03dc2c78abcd114c216c398f82dc",
+  "trajectory_sha256": "2f5172f6dfc79e88157119c762428a65a7ef817bcc60021ab2c7f97dd3f25c64",
+  "attempt_manifest_sha256": "2ef0608fb190658c2cadf45d49e589114d384b1eff944157dd98079423d7d127"
+}

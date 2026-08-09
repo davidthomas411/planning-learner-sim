@@ -1,7 +1,11 @@
 import argparse
 import hashlib
 import json
+from collections import Counter
 from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 def read_jsonl(path: Path) -> list[dict]:
@@ -10,6 +14,47 @@ def read_jsonl(path: Path) -> list[dict]:
 
 def canonical_jsonl(rows: list[dict]) -> str:
     return "".join(json.dumps(row, separators=(",", ":")) + "\n" for row in rows)
+
+
+def save_summary_figure(endpoint_rows: list[dict], trajectory_rows: list[dict], attempt_rows: list[dict], path: Path) -> None:
+    difficulties = ("easy", "moderate", "hard")
+    attempted = [sum(row["difficulty"] == value for row in attempt_rows) for value in difficulties]
+    retained = [sum(row["difficulty"] == value for row in endpoint_rows) for value in difficulties]
+    x = np.arange(len(difficulties))
+    fig, axes = plt.subplots(2, 2, figsize=(13, 9), constrained_layout=True)
+    axes[0, 0].bar(x - 0.18, attempted, 0.36, label="attempted", color="#4E79A7")
+    axes[0, 0].bar(x + 0.18, retained, 0.36, label="retained", color="#F28E2B")
+    axes[0, 0].set_xticks(x, difficulties)
+    axes[0, 0].set_ylabel("Cases")
+    axes[0, 0].set_title("Retention by difficulty")
+    axes[0, 0].legend()
+    bottoms = np.zeros(2)
+    for difficulty, color in zip(difficulties, ("#59A14F", "#EDC948", "#E15759"), strict=True):
+        values = [sum(row["split"] == split and row["difficulty"] == difficulty for row in endpoint_rows) for split in ("train", "validation")]
+        axes[0, 1].bar(("train", "validation"), values, bottom=bottoms, label=difficulty, color=color)
+        bottoms += values
+    axes[0, 1].set_ylabel("Retained cases")
+    axes[0, 1].set_title("Frozen partition composition")
+    axes[0, 1].legend()
+    lengths = [len(row["trajectory"]) - 1 for row in trajectory_rows]
+    axes[1, 0].hist(lengths, bins=np.arange(0.5, 11.5), color="#4E79A7")
+    axes[1, 0].set_xlabel("High-level actions before stop")
+    axes[1, 0].set_ylabel("Retained cases")
+    axes[1, 0].set_title("Demonstration length")
+    actions = Counter(
+        transition["action_name"]
+        for row in trajectory_rows
+        for transition in row["trajectory"]
+        if transition["action_name"] != "stop"
+    ).most_common(10)
+    labels = [name.replace("_", " ") for name, _ in reversed(actions)]
+    values = [count for _, count in reversed(actions)]
+    axes[1, 1].barh(labels, values, color="#59A14F")
+    axes[1, 1].set_xlabel("Recorded actions")
+    axes[1, 1].set_title("Ten most frequent actions")
+    fig.suptitle("Three-dimensional 300-case train/validation dataset", fontweight="bold")
+    fig.savefig(path, dpi=180)
+    plt.close(fig)
 
 
 def main() -> None:
@@ -63,11 +108,26 @@ def main() -> None:
     (args.output_dir / "endpoint_view.jsonl").write_text(endpoint_text, encoding="utf-8")
     (args.output_dir / "trajectory_view.jsonl").write_text(trajectory_text, encoding="utf-8")
     (args.output_dir / "attempt_manifest.jsonl").write_text(attempts_text, encoding="utf-8")
+    save_summary_figure(endpoint_rows, trajectory_rows, attempt_rows, args.output_dir / "01_dataset_summary.png")
+    attempted_by_difficulty = Counter(row["difficulty"] for row in attempt_rows)
+    retained_by_difficulty = Counter(row["difficulty"] for row in endpoint_rows)
+    trajectory_lengths = [len(row["trajectory"]) - 1 for row in trajectory_rows]
     summary = {
         "status": "validated merged train/validation dataset",
         "shards": [str(path) for path in args.shards],
         "retained_by_split": counts,
         "attempted": len(attempt_rows),
+        "retained_by_difficulty": dict(retained_by_difficulty),
+        "attempted_by_difficulty": dict(attempted_by_difficulty),
+        "retention_rate_by_difficulty": {
+            difficulty: retained_by_difficulty[difficulty] / attempted_by_difficulty[difficulty]
+            for difficulty in ("easy", "moderate", "hard")
+        },
+        "search_misses_among_reference_reachable": sum(
+            not row["search_acceptable"] and row["reference_acceptable"] for row in attempt_rows
+        ),
+        "mean_high_level_actions": float(np.mean(trajectory_lengths)),
+        "median_high_level_actions": float(np.median(trajectory_lengths)),
         "endpoint_sha256": hashlib.sha256(endpoint_text.encode("utf-8")).hexdigest(),
         "trajectory_sha256": hashlib.sha256(trajectory_text.encode("utf-8")).hexdigest(),
         "attempt_manifest_sha256": hashlib.sha256(attempts_text.encode("utf-8")).hexdigest(),

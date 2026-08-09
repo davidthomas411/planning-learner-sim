@@ -26,6 +26,12 @@ All 20 tests pass with CUDA-enabled Torch installed. The additional tests compar
 
 The first pure-float16 full optimization produced NaNs because Adam's optimizer state was also float16. The implementation now uses the normal mixed-precision pattern: float16 cached geometry with float32 master fluence and optimizer moments. A finite-loss guard stops any future non-finite trajectory immediately.
 
+## 300-case dataset generation
+
+The local RTX 4060 generated a frozen-manifest development dataset containing 240 retained training cases and 60 retained validation cases. The corrected 8 x 8 fluence jobs attempted 405 cases. Training required 2396 seconds for 329 attempts; validation required 584 seconds for 76 attempts and ran concurrently for part of the training job. The combined process-time rate was 7.36 seconds per attempted case, and corrected dataset wall time was approximately 40 minutes.
+
+The retained dataset contains 136 easy, 125 moderate, and 39 hard cases. A preceding 4 x 4 fluence calibration was rejected because it retained only easy cases. This failure establishes that fluence resolution is an experimental feasibility parameter and must remain frozen at 8 x 8 for the development-resolution variance pilot.
+
 ## Complete trajectory measurements
 
 Each measurement is the same five-state, four-manual-action demonstration with 60 automated fluence-optimization iterations per state, 12 candidate beam angles, and 16 x 16 fluence pixels per beam.

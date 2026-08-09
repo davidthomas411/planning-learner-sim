@@ -7,6 +7,7 @@ Instructions for validating and benchmarking the optional PyTorch backend on the
 The prespecified case assignments are in [`outputs/splits/case_split_manifest.csv`](outputs/splits/case_split_manifest.csv); they contain no trajectory or outcome fields.
 Measured RTX 4060 results through 256-cubed are summarized in [`LOCAL_GPU_RESULTS.md`](LOCAL_GPU_RESULTS.md).
 The protocol-stage Medical Physics manuscript is in `paper/planning_trajectory_manuscript_draft.docx`; its Results section is intentionally reserved until the experimental specification and analysis are frozen.
+The completed 240-case training and 60-case validation dataset is in `outputs/pilot300_local_v2/merged/`, with all attempted cases retained in its manifest and a visual audit in `01_dataset_summary.png`.
 
 ## What exists now
 
@@ -168,7 +169,7 @@ This writes matched `endpoints.jsonl` and `trajectories.jsonl` records, compress
 For a prespecified, shardable 3D pilot, select cases from the frozen split manifest rather than allocating sequential development seeds. For example, the first training shard is generated with:
 
 ```powershell
-uv run python scripts/build_3d_dataset_pilot.py --split-manifest outputs/splits/case_split_manifest.csv --split train --start-ordinal 0 --max-attempts 100 --retained-cases 60 --device cuda:0 --output-dir outputs/3d_300_train_shard0
+uv run python scripts/build_3d_dataset_pilot.py --split-manifest outputs/splits/case_split_manifest.csv --split train --start-ordinal 0 --max-attempts 100 --retained-cases 60 --fluence-size 8 --device cuda:0 --output-dir outputs/3d_300_train_shard0
 ```
 
 `--start-ordinal` defines a nonoverlapping manifest range for each GPU process. Training and validation cases must be generated into separate shards and merged only after case-identity and ordinal checks.
