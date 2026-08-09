@@ -173,6 +173,8 @@ uv run --extra gpu python scripts/build_3d_dataset_pilot.py --split-manifest out
 
 `--start-ordinal` defines a nonoverlapping manifest range for each GPU process. Training and validation cases must be generated into separate shards and merged only after case-identity and ordinal checks.
 
+`scripts/merge_3d_dataset_shards.py` performs the required duplicate, partition, retained-count, and endpoint/trajectory identity checks before writing a canonical merged dataset. The iterative trainer accepts explicit `--train-cases` and `--heldout-cases` values and uses the stored manifest partition rather than randomly repartitioning merged pilot data.
+
 ## How methods and results will be shown
 
 The full experiment will use a fixed visual sequence:

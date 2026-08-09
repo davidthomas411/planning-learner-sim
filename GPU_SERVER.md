@@ -88,4 +88,32 @@ wait
 
 These commands target 240 retained training cases and 60 retained validation cases. The attempt ranges are deliberately larger than the retained targets because unreachable cases are preserved but excluded from learned-policy training. If a shard does not reach its retained target, continue from the first unused split ordinal; do not change the acceptance rule or reuse an ordinal. Before training, verify that retained case identifiers are unique, all endpoint/trajectory pairs match, no training identifier appears in validation, and the combined retained counts are exactly 240 and 60.
 
+Perform those checks and create the canonical merged dataset with:
+
+```bash
+uv run python scripts/merge_3d_dataset_shards.py \
+  outputs/pilot300/train_shard0 outputs/pilot300/train_shard1 \
+  outputs/pilot300/train_shard2 outputs/pilot300/validation_shard0 \
+  --expected-train 240 --expected-validation 60 \
+  --output-dir outputs/pilot300/merged
+```
+
+The merge fails on duplicate split ordinals, duplicate case identifiers, endpoint/trajectory disagreement, test-partition contamination, or incorrect retained counts. It writes canonical file hashes to `summary.json`.
+
 The first server execution should use the development grid and optimizer settings to establish correctness. The 96-cubed configuration should be started only after the four shards reproduce the expected retention fields and action-mask tests. Dataset generation is case-parallel; model initialization seeds should subsequently be assigned one at a time to GPUs, with complete per-seed checkpoints and metrics rather than data-parallel mixing of seed states.
+
+After the development-resolution merge, distribute the ten initialization seeds as nonoverlapping jobs with explicit manifest partitions:
+
+```bash
+for spec in "0 3 0" "3 3 1" "6 2 2" "8 2 3"; do
+  set -- $spec
+  uv run python scripts/train_3d_iterative_policy_pilot.py \
+    --dataset-dir outputs/pilot300/merged --train-cases 240 --heldout-cases 60 \
+    --seed-start "$1" --seeds "$2" --pretrain-updates 400 --updates 60 \
+    --dtype float32 --deterministic --device "cuda:$3" \
+    --output-dir "outputs/pilot300/iterative_policy_seeds_$1" &
+done
+wait
+```
+
+The initial execution should retain deterministic float32 calculations. Reduced precision may be evaluated later as a separate throughput condition only after its per-case metrics agree within a frozen numerical tolerance.

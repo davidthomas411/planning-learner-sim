@@ -253,10 +253,13 @@ def save_plot(history: list[dict], results: list[dict], path: Path) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train matched iterative endpoint-only and trajectory-supervised policies")
     parser.add_argument("--dataset-dir", type=Path, default=Path("outputs/3d_dataset_pilot_revised"))
+    parser.add_argument("--train-cases", type=int, default=24)
+    parser.add_argument("--heldout-cases", type=int, default=8)
     parser.add_argument("--updates", type=int, default=60)
     parser.add_argument("--pretrain-updates", type=int, default=400)
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--seeds", type=int, default=3)
+    parser.add_argument("--seed-start", type=int, default=0)
     parser.add_argument("--learning-rate", type=float, default=0.001)
     parser.add_argument("--policy-weight", type=float, default=0.2)
     parser.add_argument("--action-weight", type=float, default=0.02)
@@ -273,10 +276,22 @@ def main() -> None:
     if args.deterministic:
         os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
         torch.use_deterministic_algorithms(True)
-    records = load_records(args.dataset_dir / "trajectory_view.jsonl")[:32]
-    permutation = np.random.default_rng(20260809).permutation(len(records))
-    train_records = [records[index] for index in permutation[:24]]
-    test_records = [records[index] for index in permutation[24:32]]
+    records = load_records(args.dataset_dir / "trajectory_view.jsonl")
+    if records and all(record.get("split") in {"train", "validation"} for record in records):
+        train_records = [record for record in records if record["split"] == "train"][: args.train_cases]
+        test_records = [record for record in records if record["split"] == "validation"][: args.heldout_cases]
+    else:
+        required = args.train_cases + args.heldout_cases
+        if len(records) < required:
+            raise ValueError(f"dataset has {len(records)} records; {required} required")
+        permutation = np.random.default_rng(20260809).permutation(len(records))
+        train_records = [records[index] for index in permutation[: args.train_cases]]
+        test_records = [records[index] for index in permutation[args.train_cases : required]]
+    if len(train_records) != args.train_cases or len(test_records) != args.heldout_cases:
+        raise ValueError(
+            f"requested {args.train_cases} train and {args.heldout_cases} validation records; "
+            f"found {len(train_records)} and {len(test_records)}"
+        )
     device = torch.device(args.device)
     dtype = getattr(torch, args.dtype)
     torch.cuda.set_device(device)
@@ -291,7 +306,8 @@ def main() -> None:
     histories: list[dict] = []
     results: list[dict] = []
     parameter_counts = set()
-    for seed in range(args.seeds):
+    seed_values = range(args.seed_start, args.seed_start + args.seeds)
+    for seed in seed_values:
         for condition in ("endpoint", "trajectory"):
             model, history = train_condition(
                 condition,
@@ -334,6 +350,7 @@ def main() -> None:
         "training_cases": len(train_records),
         "heldout_cases": len(test_records),
         "training_seeds": args.seeds,
+        "training_seed_start": args.seed_start,
         "updates": args.updates,
         "pretrain_updates": args.pretrain_updates,
         "batch_size": args.batch_size,
