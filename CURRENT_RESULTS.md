@@ -104,3 +104,18 @@ This closed-loop result is a development finding on eight held-out cases repeate
 ## Current decision
 
 Environment and demonstration mechanics have passed their current engineering checks. Shared closed-loop rollout and legality masking are implemented and tested, but the comparison gate remains open because the primary iterative endpoint-only comparator, full action-mask parity audit, and 300-case variance pilot are not complete. The multi-day 10,000-case study should not begin until those items pass. The next compute milestone is the direct four-A100 correctness and throughput run described in `GPU_SERVER.md`, followed by a 300-case training/validation pilot using the frozen closed-loop comparison.
+
+## Angular delivery complexity pilot
+
+The current high-level planner starts from four cardinal fields but is not limited to four fields; it can add fields from 12 coplanar candidates. A paired 12-case, 64-cubed pilot compared four fixed angular parameterizations using 200 optimizer iterations and 8 x 8 fluence maps:
+
+| Delivery representation | Angular samples | Acceptable | Median D95 | Median maximum OAR ratio | Median optimization time |
+|---|---:|---:|---:|---:|---:|
+| Four static fields | 4 | 25.0% | 0.976 | 1.174 | 0.72 s |
+| Twelve static fields | 12 | 58.3% | 0.987 | 0.901 | 0.71 s |
+| 180-degree arc-like sampling at 10 degrees | 19 | 58.3% | 0.988 | 0.901 | 0.91 s |
+| 360-degree arc-like sampling at 10 degrees | 36 | 58.3% | 0.989 | 0.864 | 1.68 s |
+
+The main change occurred between four and twelve directions. The full arc-like representation modestly reduced median OAR burden but did not increase the acceptable-plan count. This pilot used independent fluence maps at each sampled angle. It is not a delivery-realistic VMAT model because it omits MLC-aperture continuity, cumulative monitor units, dose-rate modulation, and gantry-speed constraints.
+
+The recommended design is to retain the 12-angle static environment for the primary supervision experiment and add 180-degree and 360-degree arc-like sampling as prespecified delivery-complexity conditions. Manual-level arc actions should change the arc span, rotate its start and stop angles, add an avoidance sector, or add a second arc. Individual control-point fluence remains an inner-optimizer variable and must not become a manual behavior label.

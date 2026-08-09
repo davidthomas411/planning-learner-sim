@@ -9,6 +9,7 @@ from .objective import PlanningPriorities, clinical_violation_score, evaluate_pl
 from .oracle import OracleTrajectory, run_high_level_oracle
 from .optimizer import OptimizedPlan, optimize_beamlets
 from .dose3d import ImplicitDoseEngine3D
+from .delivery3d import DeliveryMode3D, delivery_mode_3d, standard_delivery_modes_3d
 from .optimizer3d import (
     OptimizedPlan3D,
     PlanMetrics3D,
@@ -50,6 +51,7 @@ __all__ = [
     "OracleTrajectory",
     "PlanningPriorities",
     "ImplicitDoseEngine3D",
+    "DeliveryMode3D",
     "OptimizedPlan3D",
     "PlanMetrics3D",
     "SyntheticCase3D",
@@ -72,6 +74,8 @@ __all__ = [
     "evaluate_plan",
     "generate_case",
     "generate_case_3d",
+    "delivery_mode_3d",
+    "standard_delivery_modes_3d",
     "optimize_beamlets",
     "optimize_fluence_3d",
     "objective_value_3d",

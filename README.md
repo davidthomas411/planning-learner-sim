@@ -141,6 +141,14 @@ uv run --extra gpu python scripts/evaluate_3d_closed_loop_pilot.py --dataset-dir
 
 The learned trajectory policy selects one legal high-level action, the inner optimizer recalculates fluence, and the process repeats. Stop is legal only when the current plan satisfies all visible acceptance rules. The endpoint arm in this script is a direct terminal-settings comparator; it is not the prespecified primary iterative endpoint-only policy.
 
+## Compare angular delivery complexity
+
+```powershell
+uv run --extra gpu python scripts/run_3d_delivery_complexity_pilot.py --cases-per-stratum 4 --grid-size 64 --fluence-size 8 --iterations 200 --output-dir outputs/3d_delivery_complexity_pilot
+```
+
+This paired engineering pilot compares four static fields, twelve static fields, 19 control points over 180 degrees, and 36 control points over 360 degrees. The arc-like modes use independent fluence maps at sampled angles. They are useful angular-complexity surrogates but are not delivery-realistic VMAT.
+
 ## Build a matched endpoint/trajectory dataset pilot
 
 ```powershell

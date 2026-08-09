@@ -165,3 +165,14 @@ def test_3d_difficulty_generator_is_reproducible_and_stratified() -> None:
     hard_overlap = sum(np.count_nonzero(hard.target & mask) for mask in hard.oars)
     assert easy_overlap == 0
     assert hard_overlap > 0
+
+
+def test_delivery_complexity_modes_have_expected_angular_sampling() -> None:
+    from dosim_sim.delivery3d import delivery_mode_3d
+
+    assert len(delivery_mode_3d("static_4").angles_degrees) == 4
+    assert len(delivery_mode_3d("static_12").angles_degrees) == 12
+    assert len(delivery_mode_3d("arc_like_180").angles_degrees) == 19
+    assert len(delivery_mode_3d("arc_like_360").angles_degrees) == 36
+    assert delivery_mode_3d("arc_like_180").angles_degrees[0] == 90.0
+    assert delivery_mode_3d("arc_like_180").angles_degrees[-1] == 270.0

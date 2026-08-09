@@ -1,0 +1,41 @@
+{
+  "status": "angular-sampling engineering pilot; arc-like modes are not delivery-realistic VMAT",
+  "cases": 12,
+  "grid_size": 64,
+  "fluence_size": 8,
+  "iterations": 200,
+  "modes": {
+    "static_4": {
+      "angular_samples": 4,
+      "acceptable_rate": 0.25,
+      "median_target_d95": 0.9764220714569092,
+      "median_maximum_oar_ratio": 1.1735805214564041,
+      "median_elapsed_seconds": 0.7187827000161633,
+      "maximum_peak_memory_mib": 23.05615234375
+    },
+    "static_12": {
+      "angular_samples": 12,
+      "acceptable_rate": 0.5833333333333334,
+      "median_target_d95": 0.9873532056808472,
+      "median_maximum_oar_ratio": 0.9009569244685972,
+      "median_elapsed_seconds": 0.7101348500000313,
+      "maximum_peak_memory_mib": 65.8251953125
+    },
+    "arc_like_180": {
+      "angular_samples": 19,
+      "acceptable_rate": 0.5833333333333334,
+      "median_target_d95": 0.9875780344009399,
+      "median_maximum_oar_ratio": 0.9014038710036509,
+      "median_elapsed_seconds": 0.9119810500415042,
+      "maximum_peak_memory_mib": 103.248046875
+    },
+    "arc_like_360": {
+      "angular_samples": 36,
+      "acceptable_rate": 0.5833333333333334,
+      "median_target_d95": 0.988606870174408,
+      "median_maximum_oar_ratio": 0.8644113431045359,
+      "median_elapsed_seconds": 1.6837691000546329,
+      "maximum_peak_memory_mib": 198.8603515625
+    }
+  }
+}

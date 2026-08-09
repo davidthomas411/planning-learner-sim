@@ -59,6 +59,8 @@ Keep the 2D 64 x 64 environment as a fast correctness and ablation harness, but 
 
 Use 12 coplanar candidate angles initially and 16 x 16 fluence pixels per beam for the 96-cubed and 128-cubed runs. Do not save a dense voxel-by-beamlet influence matrix per case: at 96-cubed this would require about 10.1 GiB in float32 for 12 beams with 16 x 16 fluence maps. Instead, save reproducible geometry parameters and evaluate an implicit forward dose operator plus its exact adjoint. Use float16 or bfloat16 for batched GPU kernels, float32 accumulation for plan metrics, and split independent cases across the four A100 GPUs. Add noncoplanar/couch-angle actions only as a later OOD condition after the coplanar environment passes validation.
 
+Treat denser angular sampling as a separate delivery-complexity factor. The initial comparison will include a 180-degree arc-like set sampled every 10 degrees (19 control points) and a 360-degree set sampled every 10 degrees (36 control points). These conditions assign independent fluence maps to sampled gantry angles and must not be described as delivery-realistic VMAT until MLC-aperture continuity, cumulative monitor units, dose-rate modulation, and gantry-speed constraints are represented. High-level arc actions may change an arc's start or stop angle, expand or contract its span, rotate the span, add an avoidance sector, or add a second arc. Individual control-point fluence changes remain inside the automated optimizer and are excluded from manual labels.
+
 ### 3.3 Plan state and action
 
 The recorded manual-planning state at step `t` contains:
