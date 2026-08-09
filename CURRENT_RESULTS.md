@@ -8,7 +8,8 @@ Verified against generated outputs on 2026-08-09.
 - A rule-based manual planner and bounded high-level search oracle using the same action vocabulary.
 - Matched endpoint and trajectory dataset records with attempted and excluded cases retained in a manifest.
 - A reproducible 3D 64 x 64 x 64 anatomy generator, implicit dose operator, exact adjoint, automated fluence optimizer, and high-level manual trajectory demonstration.
-- Ten passing tests covering reproducibility, dose linearity, optimizer masking, trajectory action integrity, dataset separation, and 3D forward/adjoint consistency.
+- An optional batched PyTorch 3D backend, differentiable inner optimizer, four-GPU benchmark script, and A100 server runbook.
+- Ten passing CPU tests covering reproducibility, dose linearity, optimizer masking, trajectory action integrity, dataset separation, and 3D forward/adjoint consistency. Three additional Torch parity/batching tests are collected when PyTorch is installed; they are skipped in the lightweight local environment.
 
 ## 2D manual-planning pilot
 
@@ -68,10 +69,10 @@ The CPU reference benchmark uses 12 beams with 8 x 8 fluence maps:
 
 One complete five-state, 60-iteration-per-state 64-cubed demonstration took 17.7 seconds in the latest full run. Timing varies slightly between runs; the earlier run took approximately 15 seconds.
 
-For the proposed 96-cubed main environment with 16 x 16 fluence maps, a dense float32 influence matrix would be about 10.1 GiB per case. The implicit forward/adjoint design is therefore required. The four A100 GPUs have not yet been benchmarked because PyTorch is not installed in the local environment and server access has not been configured here.
+For the proposed 96-cubed main environment with 16 x 16 fluence maps, a dense float32 influence matrix would be about 10.1 GiB per case. The implicit forward/adjoint design is therefore required. The batched PyTorch implementation and concurrent four-GPU benchmark entry point are ready, but the four A100 GPUs have not yet been benchmarked because server access has not been configured here.
 
 ## Present interpretation
 
 The experiment mechanics are now demonstrated in both 2D and 3D. The current evidence shows that high-level beam/priority trajectories can be represented, reproduced, optimized, and audited. It does not yet answer the primary scientific question, because endpoint-only and trajectory-supervised learners have not been trained and compared on a frozen dataset.
 
-The next compute milestone is the batched PyTorch 3D backend and direct four-A100 benchmark. The next scientific milestone is environment calibration followed by a frozen expert dataset and matched learner pilot.
+The next compute milestone is the direct four-A100 correctness and throughput run described in `GPU_SERVER.md`. The next scientific milestone is environment calibration followed by a frozen expert dataset and matched learner pilot.

@@ -3,6 +3,7 @@
 This repository tests whether intermediate expert planning actions teach a model more than the same expert's final plan alone.
 
 The latest verified measurements and their interpretation are summarized in [`CURRENT_RESULTS.md`](CURRENT_RESULTS.md).
+Instructions for validating and benchmarking the optional PyTorch backend on the four-A100 server are in [`GPU_SERVER.md`](GPU_SERVER.md).
 
 ## What exists now
 
