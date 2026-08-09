@@ -7,9 +7,10 @@ Verified against generated outputs on 2026-08-09.
 - A reproducible 2D 64 x 64 planning environment with a nested automated beamlet optimizer and high-level manual actions.
 - A rule-based manual planner and bounded high-level search oracle using the same action vocabulary.
 - Matched endpoint and trajectory dataset records with attempted and excluded cases retained in a manifest.
+- A pre-trajectory 10,000-case split manifest containing 7,000 training, 1,000 validation, 1,000 IID-test, and 1,000 reserved OOD-test seeds. Its SHA-256 digest is `c9af78cd282846ee1410f9f688bbb3cb1b82294009560374e6b331310e269a2b`.
 - A reproducible 3D 64 x 64 x 64 anatomy generator, implicit dose operator, exact adjoint, automated fluence optimizer, and high-level manual trajectory demonstration.
 - An optional batched PyTorch 3D backend, differentiable inner optimizer, four-GPU benchmark script, and A100 server runbook.
-- Ten passing CPU tests covering reproducibility, dose linearity, optimizer masking, trajectory action integrity, dataset separation, and 3D forward/adjoint consistency. Three additional Torch parity/batching tests are collected when PyTorch is installed; they are skipped in the lightweight local environment.
+- Thirteen passing CPU tests covering reproducibility, dose linearity, optimizer masking, trajectory action integrity, dataset separation, split integrity, and 3D forward/adjoint consistency. Three additional Torch parity/batching tests are collected when PyTorch is installed; their module is skipped in the lightweight local environment.
 
 ## 2D manual-planning pilot
 

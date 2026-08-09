@@ -11,6 +11,7 @@ from .optimizer import OptimizedPlan, optimize_beamlets
 from .dose3d import ImplicitDoseEngine3D
 from .optimizer3d import OptimizedPlan3D, PlanMetrics3D, evaluate_plan_3d, optimize_fluence_3d
 from .volume3d import SyntheticCase3D, generate_case_3d
+from .splits import SplitConfig, SplitRow, build_split_rows, split_manifest_sha256
 
 try:
     from .torch_dose3d import (
@@ -36,9 +37,12 @@ __all__ = [
     "OptimizedPlan3D",
     "PlanMetrics3D",
     "SyntheticCase3D",
+    "SplitConfig",
+    "SplitRow",
     "TorchImplicitDoseEngine3D",
     "TorchOptimizedPlan3D",
     "build_dose_influence",
+    "build_split_rows",
     "clinical_violation_score",
     "evaluate_plan",
     "generate_case",
@@ -50,4 +54,5 @@ __all__ = [
     "run_greedy_expert",
     "run_high_level_oracle",
     "run_manual_planner",
+    "split_manifest_sha256",
 ]

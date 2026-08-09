@@ -2,7 +2,7 @@
 
 ## Current implementation status (2026-08-09)
 
-The 2D nested planner, high-level search oracle, matched dataset pilot, 64-cubed implicit 3D prototype, and optional batched PyTorch backend are executable. Ten CPU tests pass; three additional Torch tests are collected when that optional dependency is installed. The latest 3D example reaches all provisional synthetic constraints after four recorded manual beam/priority edits, and the NumPy operator has been benchmarked at 64-, 96-, and 128-cubed. The endpoint-versus-trajectory learner comparison and direct four-A100 benchmark have not started. See `CURRENT_RESULTS.md` for the measured values and the boundary between demonstrated mechanics and untested scientific claims.
+The 2D nested planner, high-level search oracle, matched dataset pilot, 64-cubed implicit 3D prototype, optional batched PyTorch backend, and pre-trajectory 10,000-case split manifest are executable. Thirteen CPU tests pass; three additional Torch tests are collected when that optional dependency is installed. The latest 3D example reaches all provisional synthetic constraints after four recorded manual beam/priority edits, and the NumPy operator has been benchmarked at 64-, 96-, and 128-cubed. The endpoint-versus-trajectory learner comparison and direct four-A100 benchmark have not started. See `CURRENT_RESULTS.md` for the measured values and the boundary between demonstrated mechanics and untested scientific claims.
 
 ## 1. Decision the simulation must support
 

@@ -4,6 +4,7 @@ This repository tests whether intermediate expert planning actions teach a model
 
 The latest verified measurements and their interpretation are summarized in [`CURRENT_RESULTS.md`](CURRENT_RESULTS.md).
 Instructions for validating and benchmarking the optional PyTorch backend on the four-A100 server are in [`GPU_SERVER.md`](GPU_SERVER.md).
+The prespecified case assignments are in [`outputs/splits/case_split_manifest.csv`](outputs/splits/case_split_manifest.csv); they contain no trajectory or outcome fields.
 
 ## What exists now
 
