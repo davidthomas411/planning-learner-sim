@@ -141,6 +141,14 @@ uv run --extra gpu python scripts/evaluate_3d_closed_loop_pilot.py --dataset-dir
 
 The learned trajectory policy selects one legal high-level action, the inner optimizer recalculates fluence, and the process repeats. Stop is legal only when the current plan satisfies all visible acceptance rules. The endpoint arm in this script is a direct terminal-settings comparator; it is not the prespecified primary iterative endpoint-only policy.
 
+## Run the matched iterative-policy development check
+
+```powershell
+uv run --extra gpu python scripts/train_3d_iterative_policy_pilot.py --dataset-dir outputs/3d_dataset_pilot_revised --pretrain-updates 400 --updates 30 --seeds 3 --dtype float32 --deterministic --output-dir outputs/3d_iterative_policy_pilot_deterministic
+```
+
+Both arms use the same iterative network, terminal simulator reward, legal-action mask, rollout limit, and optimizer-update count. The endpoint-only arm receives no intermediate demonstration action. The trajectory arm receives the same terminal supervision plus categorical supervision on the recorded high-level actions.
+
 ## Compare angular delivery complexity
 
 ```powershell
@@ -156,6 +164,14 @@ uv run --extra dev python scripts/build_oracle_dataset.py --reachable-cases 4 --
 ```
 
 This writes matched `endpoints.jsonl` and `trajectories.jsonl` records, compressed anatomy/dose arrays, and a manifest containing every attempted or excluded case. Both views contain identical cases and final plans; only the trajectory view includes intermediate high-level actions.
+
+For a prespecified, shardable 3D pilot, select cases from the frozen split manifest rather than allocating sequential development seeds. For example, the first training shard is generated with:
+
+```powershell
+uv run --extra gpu python scripts/build_3d_dataset_pilot.py --split-manifest outputs/splits/case_split_manifest.csv --split train --start-ordinal 0 --max-attempts 100 --retained-cases 60 --device cuda:0 --output-dir outputs/3d_300_train_shard0
+```
+
+`--start-ordinal` defines a nonoverlapping manifest range for each GPU process. Training and validation cases must be generated into separate shards and merged only after case-identity and ordinal checks.
 
 ## How methods and results will be shown
 

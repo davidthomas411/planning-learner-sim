@@ -11,7 +11,7 @@ Verified against generated outputs on 2026-08-09.
 - A reproducible 3D 64 x 64 x 64 anatomy generator, implicit dose operator, exact adjoint, automated fluence optimizer, and high-level manual trajectory demonstration.
 - An optional batched PyTorch 3D backend, differentiable inner optimizer, four-GPU benchmark script, and A100 server runbook.
 - A validated CUDA installation on the local RTX 4060, including successful complete trajectories from 96- through 256-cubed.
-- Eighteen passing tests with CUDA-enabled Torch, including NumPy/PyTorch forward and adjoint parity, batched-state agreement, inactive-beam masking, difficulty-stratified geometry generation, and high-level action integrity.
+- Twenty passing tests with CUDA-enabled Torch, including NumPy/PyTorch forward and adjoint parity, batched-state agreement, inactive-beam masking, difficulty-stratified geometry generation, split integrity, and high-level action integrity.
 
 ## 2D manual-planning pilot
 
@@ -101,9 +101,19 @@ A subsequent closed-loop development check exposed an action-legality defect: wh
 
 This closed-loop result is a development finding on eight held-out cases repeated across five training seeds. The endpoint arm is a direct terminal-settings regressor rather than the prespecified iterative endpoint-only policy, so this is not the primary comparison and no inferential claim is made.
 
+## Matched iterative-policy development pilot
+
+The primary comparator mechanics are now implemented. Both conditions used the same 31,156-parameter iterative policy, terminal plan-setting loss, policy-gradient loss computed from terminal simulator outcomes, legal-action mask, ten-action rollout limit, and optimizer-update count. The endpoint-only condition did not receive demonstration states or actions. The trajectory-supervised condition received the same terminal supervision plus categorical action loss at demonstration states. Each selected action was a high-level beam-membership or named-priority change, followed by actual fluence reoptimization.
+
+The deterministic pilot used 24 training cases, eight held-out cases, three initialization seeds, 400 matched pretraining updates, and 30 matched terminal-rollout updates. Float32 geometry and deterministic PyTorch algorithms were used. Across 24 held-out case-seed evaluations per condition, endpoint-only acceptability was 54.2% and trajectory-supervised acceptability was 66.7%. Mean violation scores were 0.1129 and 0.0504, respectively, and mean trajectory lengths were 6.88 and 6.04 actions. Trajectory supervision was favored on aggregate but achieved higher acceptability in only two of three seeds.
+
+Two independent deterministic smoke runs produced byte-identical case-metric files. The frozen full-pilot case-metric SHA-256 digest is `d4d0d0bfbd8c5063b52b72f502599c30b345a3f04f1805ad2dc56a530a665bb0`; the training-history digest is `3658d87617f6bafeafde579e5761858e119c986e68891e142b9d86cd64d9c457`.
+
+This result demonstrates a matched, reproducible comparison path and supports proceeding to the variance pilot. It is not a primary result: the cohort is small, the effect is not consistent across initialization seeds, and the development cases were not drawn from the frozen train/validation manifest.
+
 ## Current decision
 
-Environment and demonstration mechanics have passed their current engineering checks. Shared closed-loop rollout and legality masking are implemented and tested, but the comparison gate remains open because the primary iterative endpoint-only comparator, full action-mask parity audit, and 300-case variance pilot are not complete. The multi-day 10,000-case study should not begin until those items pass. The next compute milestone is the direct four-A100 correctness and throughput run described in `GPU_SERVER.md`, followed by a 300-case training/validation pilot using the frozen closed-loop comparison.
+Environment, demonstration, shared rollout, action-mask parity, and the primary iterative comparator have passed their current engineering checks. The comparison remains a development result until the prespecified 300-case variance pilot is complete. The multi-day 10,000-case study should not begin before that pilot. The next compute milestone is the direct four-A100 correctness and throughput run described in `GPU_SERVER.md`, followed by a 300-case training/validation pilot drawn only from the frozen split manifest.
 
 ## Angular delivery complexity pilot
 

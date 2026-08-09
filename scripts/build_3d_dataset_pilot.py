@@ -1,4 +1,5 @@
 import argparse
+import csv
 import json
 import time
 from collections import Counter
@@ -20,6 +21,46 @@ from dosim_sim.volume3d import generate_case_3d
 
 
 ANGLES = tuple(float(value) for value in range(0, 360, 30))
+
+
+def candidate_specs(
+    max_attempts: int,
+    seed_start: int,
+    split_manifest: Path | None = None,
+    split: str | None = None,
+    start_ordinal: int = 0,
+) -> list[dict]:
+    """Return deterministic case specifications for one independently writable shard."""
+    if split_manifest is None:
+        return [
+            {
+                "seed": seed_start + offset,
+                "split": None,
+                "split_ordinal": None,
+                "difficulty": ("easy", "moderate", "hard")[offset % 3],
+            }
+            for offset in range(max_attempts)
+        ]
+    if split is None:
+        raise ValueError("--split is required when --split-manifest is provided")
+    with split_manifest.open(newline="", encoding="utf-8") as handle:
+        rows = [row for row in csv.DictReader(handle) if row["split"] == split]
+    rows.sort(key=lambda row: int(row["split_ordinal"]))
+    selected = [row for row in rows if int(row["split_ordinal"]) >= start_ordinal][:max_attempts]
+    if len(selected) < max_attempts:
+        raise ValueError(
+            f"split {split!r} has only {len(selected)} cases at or after ordinal {start_ordinal}; "
+            f"{max_attempts} requested"
+        )
+    return [
+        {
+            "seed": int(row["seed"]),
+            "split": row["split"],
+            "split_ordinal": int(row["split_ordinal"]),
+            "difficulty": ("easy", "moderate", "hard")[int(row["split_ordinal"]) % 3],
+        }
+        for row in selected
+    ]
 
 
 def save_audit(attempts: list[dict], retained: list[dict], path: Path) -> None:
@@ -52,6 +93,9 @@ def main() -> None:
     parser.add_argument("--retained-cases", type=int, default=40)
     parser.add_argument("--max-attempts", type=int, default=120)
     parser.add_argument("--seed-start", type=int, default=15000)
+    parser.add_argument("--split-manifest", type=Path)
+    parser.add_argument("--split", choices=("train", "validation", "iid_test", "ood_test"))
+    parser.add_argument("--start-ordinal", type=int, default=0)
     parser.add_argument("--grid-size", type=int, default=32)
     parser.add_argument("--fluence-size", type=int, default=4)
     parser.add_argument("--iterations", type=int, default=20)
@@ -83,11 +127,18 @@ def main() -> None:
     attempts: list[dict] = []
     retained: list[dict] = []
     started = time.perf_counter()
-    for offset in range(args.max_attempts):
+    specs = candidate_specs(
+        args.max_attempts,
+        args.seed_start,
+        args.split_manifest,
+        args.split,
+        args.start_ordinal,
+    )
+    for spec in specs:
         if len(retained) >= args.retained_cases:
             break
-        seed = args.seed_start + offset
-        difficulty = ("easy", "moderate", "hard")[offset % 3]
+        seed = spec["seed"]
+        difficulty = spec["difficulty"]
         case = generate_case_3d(seed, args.grid_size, difficulty=difficulty)
         engine = TorchImplicitDoseEngine3D(case, ANGLES, args.fluence_size, device=device, dtype=torch.float16)
         trajectory = run_high_level_search_3d(case, engine, shallow_cfg)
@@ -103,6 +154,8 @@ def main() -> None:
             "seed": seed,
             "case_id": case.case_id,
             "difficulty": difficulty,
+            "split": spec["split"],
+            "split_ordinal": spec["split_ordinal"],
             "search_acceptable": search_ok,
             "reference_acceptable": reference_ok,
             "search_tier": search_tier,
@@ -147,10 +200,10 @@ def main() -> None:
     trajectory_path = args.output_dir / "trajectory_view.jsonl"
     with endpoint_path.open("w", encoding="utf-8") as handle:
         for row in retained:
-            handle.write(json.dumps({key: row[key] for key in ("case_id", "seed", "difficulty", "initial_features", "final_features", "final_settings")}, separators=(",", ":")) + "\n")
+            handle.write(json.dumps({key: row[key] for key in ("case_id", "seed", "difficulty", "split", "split_ordinal", "initial_features", "final_features", "final_settings")}, separators=(",", ":")) + "\n")
     with trajectory_path.open("w", encoding="utf-8") as handle:
         for row in retained:
-            handle.write(json.dumps({key: row[key] for key in ("case_id", "seed", "difficulty", "initial_features", "final_features", "final_settings", "trajectory")}, separators=(",", ":")) + "\n")
+            handle.write(json.dumps({key: row[key] for key in ("case_id", "seed", "difficulty", "split", "split_ordinal", "initial_features", "final_features", "final_settings", "trajectory")}, separators=(",", ":")) + "\n")
     with (args.output_dir / "attempt_manifest.jsonl").open("w", encoding="utf-8") as handle:
         for row in attempts:
             handle.write(json.dumps(row, separators=(",", ":")) + "\n")
@@ -168,6 +221,8 @@ def main() -> None:
         "final_setting_count": len(retained[0]["final_settings"]) if retained else None,
         "transition_count": sum(len(row["trajectory"]) for row in retained),
         "retained_by_difficulty": dict(Counter(row["difficulty"] for row in retained)),
+        "split": args.split,
+        "start_ordinal": args.start_ordinal if args.split_manifest else None,
         "reference_acceptable_among_retained": float(
             np.mean([bool(row["reference_acceptable"]) for row in retained])
         ) if retained else None,
