@@ -1,0 +1,10 @@
+{
+  "status": "contextual development comparison; endpoint arm is a direct regressor, not the primary iterative endpoint-only policy",
+  "heldout_cases": 8,
+  "training_seeds": 5,
+  "endpoint_direct_acceptable_rate": 0.725,
+  "trajectory_policy_acceptable_rate": 0.35,
+  "endpoint_direct_mean_violation": 0.05358756160865349,
+  "trajectory_policy_mean_violation": 0.11380125946306954,
+  "trajectory_policy_mean_actions": 1.45
+}

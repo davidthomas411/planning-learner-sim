@@ -69,6 +69,7 @@ def fit(
     epochs: int,
     learning_rate: float,
     action_weight: float,
+    action_balancing: str = "none",
     test_x: torch.Tensor | None = None,
     test_y: torch.Tensor | None = None,
 ) -> tuple[MatchedPilotNet, FitResult]:
@@ -85,7 +86,16 @@ def fit(
         final_loss = endpoint_loss(endpoint_prediction, endpoint_y)
         if condition == "trajectory":
             _, action_prediction = model(action_x)
-            intermediate_loss = nn.functional.cross_entropy(action_prediction, action_y)
+            class_weights = None
+            if action_balancing == "sqrt_inverse":
+                counts = torch.bincount(action_y, minlength=len(ACTION_NAMES)).float()
+                present = counts > 0
+                class_weights = torch.zeros_like(counts)
+                class_weights[present] = torch.sqrt(counts[present].sum() / counts[present])
+                class_weights[present] /= class_weights[present].mean()
+            elif action_balancing != "none":
+                raise ValueError(f"Unknown action balancing: {action_balancing}")
+            intermediate_loss = nn.functional.cross_entropy(action_prediction, action_y, weight=class_weights)
             loss = final_loss + action_weight * intermediate_loss
         else:
             intermediate_loss = torch.zeros((), device=endpoint_x.device)
@@ -168,6 +178,7 @@ def main() -> None:
     parser.add_argument("--seeds", type=int, default=3)
     parser.add_argument("--learning-rate", type=float, default=0.003)
     parser.add_argument("--action-weight", type=float, default=0.2)
+    parser.add_argument("--action-balancing", choices=["none", "sqrt_inverse"], default="none")
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--output-dir", type=Path, default=Path("outputs/3d_learner_pilot"))
     args = parser.parse_args()
@@ -194,6 +205,7 @@ def main() -> None:
                 epochs=args.epochs,
                 learning_rate=args.learning_rate,
                 action_weight=args.action_weight,
+                action_balancing=args.action_balancing,
             )
             parameter_counts.add(sum(parameter.numel() for parameter in model.parameters()))
             overfit.append(result)
@@ -204,6 +216,7 @@ def main() -> None:
                 epochs=args.epochs,
                 learning_rate=args.learning_rate,
                 action_weight=args.action_weight,
+                action_balancing=args.action_balancing,
                 test_x=test_endpoint_x,
                 test_y=test_endpoint_y,
             )

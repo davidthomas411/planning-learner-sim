@@ -26,6 +26,7 @@ from .planning3d import (
     run_high_level_search_3d,
     run_reference_optimizer_3d,
 )
+from .policy3d import legal_action_mask_3d, rollout_policy_3d
 from .splits import SplitConfig, SplitRow, build_split_rows, split_manifest_sha256
 
 try:
@@ -59,6 +60,8 @@ __all__ = [
     "is_acceptable_3d",
     "run_high_level_search_3d",
     "run_reference_optimizer_3d",
+    "legal_action_mask_3d",
+    "rollout_policy_3d",
     "SplitConfig",
     "SplitRow",
     "TorchImplicitDoseEngine3D",

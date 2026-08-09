@@ -13,8 +13,11 @@ from dosim_sim.volume3d import generate_case_3d
 from dosim_sim.planning3d import (
     HighLevelSearchConfig3D,
     clinical_violation_score_3d,
+    is_acceptable_3d,
     run_high_level_search_3d,
 )
+from dosim_sim.dataset3d import ACTION_TO_INDEX
+from dosim_sim.policy3d import action_settings_3d, initial_policy_step_3d, legal_action_mask_3d
 
 
 def test_torch_forward_and_adjoint_match_numpy_reference() -> None:
@@ -75,3 +78,21 @@ def test_3d_search_records_only_high_level_actions() -> None:
     assert all(step.action is None or step.action.kind in allowed for step in trajectory.steps)
     assert all("beamlet" not in step.action.kind for step in trajectory.steps if step.action)
     assert clinical_violation_score_3d(trajectory.final.plan.metrics, case, cfg) >= 0
+
+
+def test_policy_mask_and_action_translation_enforce_manual_bounds() -> None:
+    case = generate_case_3d(91, grid_size=24, difficulty="easy")
+    angles = tuple(float(value) for value in range(0, 360, 30))
+    engine = TorchImplicitDoseEngine3D(case, angles, fluence_size=4)
+    cfg = HighLevelSearchConfig3D(max_steps=2, optimizer_iterations=2)
+    step = initial_policy_step_3d(case, engine, cfg)
+    mask = legal_action_mask_3d(case, step, cfg)
+    assert mask[ACTION_TO_INDEX["stop"]] == is_acceptable_3d(step.plan.metrics, case, cfg)
+    assert not mask[ACTION_TO_INDEX["add_beam_0"]]
+    assert mask[ACTION_TO_INDEX["remove_beam_0"]]
+    assert not mask[ACTION_TO_INDEX["increase_oar_1_priority"]]
+    index = ACTION_TO_INDEX["increase_target_priority"]
+    action, beams, priorities = action_settings_3d(index, step, cfg)
+    assert action is not None and action.kind == "increase_target_priority"
+    assert beams == step.plan.active_beams
+    assert priorities.target > step.plan.priorities.target

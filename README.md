@@ -133,6 +133,14 @@ uv run --extra gpu python scripts/audit_3d_search_failures.py outputs/3d_search_
 
 Both stages change only beam membership or named target, hot-spot, and OAR priorities. The deeper stage is restricted to routine-search failures that the independent reference solver can reach.
 
+## Run the closed-loop learner development check
+
+```powershell
+uv run --extra gpu python scripts/evaluate_3d_closed_loop_pilot.py --dataset-dir outputs/3d_dataset_pilot_revised --seeds 5 --action-weight 0.02 --output-dir outputs/3d_closed_loop_pilot_stop_masked
+```
+
+The learned trajectory policy selects one legal high-level action, the inner optimizer recalculates fluence, and the process repeats. Stop is legal only when the current plan satisfies all visible acceptance rules. The endpoint arm in this script is a direct terminal-settings comparator; it is not the prespecified primary iterative endpoint-only policy.
+
 ## Build a matched endpoint/trajectory dataset pilot
 
 ```powershell

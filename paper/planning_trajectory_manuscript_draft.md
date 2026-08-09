@@ -91,7 +91,7 @@ After the inner optimizer has converged or reached its fixed iteration limit, th
 3. increase or decrease target-coverage priority;
 4. increase or decrease target hot-spot priority;
 5. increase or decrease the priority of one named OAR; or
-6. stop and accept the current plan.
+6. stop and accept the current plan, permitted only when all acceptance criteria are satisfied.
 
 Each priority action applies a discrete multiplicative increment selected before dataset generation. Each beam action modifies one binary angle indicator. The inner optimizer is then rerun, and the resulting optimized state is recorded. Thus, one trajectory transition represents one interpretable change to beam geometry or a named planning priority followed by automated reoptimization.
 
@@ -125,7 +125,7 @@ The primary model will be an iterative policy πθ(a_t|c,s_t), where c denotes f
 
 The endpoint-only policy will be unrolled for the same number of high-level steps as the trajectory-supervised policy. Its loss will contain terminal dose distance, terminal objective, and constraint-violation terms. No intermediate demonstration state or action will be available to this condition.
 
-The trajectory-supervised policy will use the identical network and terminal losses. Additional terms will include categorical action loss at each demonstration state and, if retained after the model pilot, a next-state dose-change loss. The relative trajectory-loss coefficient will be selected using the validation partition and frozen before test evaluation. Both policies will use the same optimizer-update budget. A complementary equal-label analysis will subsample trajectory targets to separate temporal information from target count.
+The trajectory-supervised policy will use the identical network and terminal losses. Additional terms will include categorical action loss at each demonstration state and, if retained after the model pilot, a next-state dose-change loss. The relative trajectory-loss coefficient will be selected using the validation partition and frozen before test evaluation. During rollout, the stop action will be masked until the current plan satisfies the same visible acceptance criteria used to label demonstrations. Both policies will use the same optimizer-update budget. A complementary equal-label analysis will subsample trajectory targets to separate temporal information from target count.
 
 ## 2.I. Comparators and ablations
 
