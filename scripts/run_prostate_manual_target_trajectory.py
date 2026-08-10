@@ -13,6 +13,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from matplotlib.colors import ListedColormap
 
 from dosim_sim.delivery3d import delivery_mode_3d
 from dosim_sim.objective import PlanningPriorities
@@ -61,7 +62,7 @@ def step_row(case, step) -> dict:
 
 def save_trajectory_plot(rows: list[dict], path: Path) -> None:
     case_ids = list(dict.fromkeys(row["case_id"] for row in rows))
-    figure, axes = plt.subplots(1, 2, figsize=(12, 4.8), constrained_layout=True)
+    figure, axes = plt.subplots(1, 3, figsize=(16, 4.8), constrained_layout=True)
     for case_id in case_ids:
         selected = [row for row in rows if row["case_id"] == case_id]
         label = case_id.replace("prostate3d-", "")
@@ -73,6 +74,12 @@ def save_trajectory_plot(rows: list[dict], path: Path) -> None:
         )
         axes[1].plot(
             [row["step"] for row in selected],
+            [row["target_d02_gy"] for row in selected],
+            marker="o",
+            label=label,
+        )
+        axes[2].plot(
+            [row["step"] for row in selected],
             [row["maximum_oar_variation_ratio"] for row in selected],
             marker="o",
             label=label,
@@ -80,16 +87,19 @@ def save_trajectory_plot(rows: list[dict], path: Path) -> None:
     axes[0].axhline(58.8, color="black", linestyle="--", linewidth=1)
     axes[0].set_ylabel("PTV D98 (Gy)")
     axes[0].set_title("Target coverage")
-    axes[1].axhline(1.0, color="black", linestyle="--", linewidth=1)
-    axes[1].set_ylabel("Worst OAR value / variation limit")
-    axes[1].set_title("OAR limits")
+    axes[1].axhline(75.0, color="black", linestyle="--", linewidth=1)
+    axes[1].set_ylabel("PTV D02 (Gy)")
+    axes[1].set_title("Engineering hot-spot check")
+    axes[2].axhline(1.0, color="black", linestyle="--", linewidth=1)
+    axes[2].set_ylabel("Worst OAR value / variation limit")
+    axes[2].set_title("OAR limits")
     for axis in axes:
         axis.set_xlabel("Manual planning step")
         axis.set_xticks(sorted({row["step"] for row in rows}))
         axis.grid(alpha=0.2)
     handles, labels = axes[0].get_legend_handles_labels()
-    figure.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 1.03), ncol=4, frameon=False)
-    figure.suptitle("Hard prostate cases: manual target-priority sequence", y=1.10)
+    figure.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, -0.16), ncol=8, frameon=False)
+    figure.suptitle("Hard prostate cases: manual target and hot-spot priority sequence", y=1.03)
     figure.savefig(path, dpi=180, bbox_inches="tight")
     plt.close(figure)
 
@@ -108,7 +118,9 @@ def save_representative_review(case, trajectory, path: Path) -> None:
         axes[0, column].contour(case.target[:, :, slice_index].T, levels=[0.5], colors=[colors["PTV"]], linewidths=1.5)
         axes[0, column].contour(case.oars[0][:, :, slice_index].T, levels=[0.5], colors=[colors["bladder"]], linewidths=1.2)
         axes[0, column].contour(case.oars[1][:, :, slice_index].T, levels=[0.5], colors=[colors["rectum"]], linewidths=1.2)
-        axes[0, column].set_title(f"{name}: target priority {plan.priorities.target:.2f}")
+        axes[0, column].set_title(
+            f"{name}: target {plan.priorities.target:.2f}; hot spot {plan.priorities.hotspot:.2f}"
+        )
         axes[0, column].set_xticks([])
         axes[0, column].set_yticks([])
         for structure, mask in masks.items():
@@ -124,8 +136,39 @@ def save_representative_review(case, trajectory, path: Path) -> None:
     plt.close(figure)
 
 
-def run_manual_target_sequence(case, engine, active_beams, config) -> PlanningTrajectory3D:
-    """Apply only review-triggered target-priority changes."""
+def save_action_map(rows: list[dict], path: Path) -> None:
+    case_ids = list(dict.fromkeys(row["case_id"] for row in rows))
+    actions = [row for row in rows if int(row["step"]) > 0]
+    maximum_step = max(int(row["step"]) for row in actions)
+    values = np.zeros((len(case_ids), maximum_step), dtype=int)
+    labels = np.full(values.shape, "", dtype=object)
+    case_index = {case_id: index for index, case_id in enumerate(case_ids)}
+    for row in actions:
+        y = case_index[row["case_id"]]
+        x = int(row["step"]) - 1
+        if row["action_type"] == "increase_target_priority":
+            values[y, x] = 1
+            labels[y, x] = f"Target\n{float(row['target_priority']):.2f}"
+        elif row["action_type"] == "increase_hotspot_priority":
+            values[y, x] = 2
+            labels[y, x] = f"Hot spot\n{float(row['hotspot_priority']):.2f}"
+    figure, axis = plt.subplots(figsize=(9, 8), constrained_layout=True)
+    axis.imshow(values, aspect="auto", cmap=ListedColormap(("#f2f2f2", "#4c78a8", "#f58518")), vmin=0, vmax=2)
+    axis.set_xticks(np.arange(maximum_step), [f"Step {value}" for value in range(1, maximum_step + 1)])
+    axis.set_yticks(np.arange(len(case_ids)), [case_id.replace("prostate3d-", "") for case_id in case_ids])
+    axis.set_xlabel("Manual planning action")
+    axis.set_ylabel("Hard validation case")
+    axis.set_title("Recorded target and hot-spot priority changes")
+    for y in range(values.shape[0]):
+        for x in range(values.shape[1]):
+            if labels[y, x]:
+                axis.text(x, y, labels[y, x], ha="center", va="center", color="white", fontsize=8)
+    figure.savefig(path, dpi=180)
+    plt.close(figure)
+
+
+def run_manual_target_sequence(case, engine, active_beams, config, action_set) -> PlanningTrajectory3D:
+    """Apply review-triggered target and optional hot-spot priority changes."""
 
     priorities = PlanningPriorities.for_case(case)
     plan = optimize_fluence_3d_torch(
@@ -140,14 +183,25 @@ def run_manual_target_sequence(case, engine, active_beams, config) -> PlanningTr
     if is_acceptable_3d(plan.metrics, case, config):
         return PlanningTrajectory3D(case.case_id, tuple(steps), "acceptable")
     for step_index in range(1, config.max_steps + 1):
-        old = plan.priorities.target
+        target_failed = plan.metrics.protocol_target_variation_acceptable is False
+        hotspot_failed = plan.metrics.target_d02 > config.d02_max
+        if target_failed:
+            priority_name = "target"
+            action_kind = "increase_target_priority"
+            old = plan.priorities.target
+        elif hotspot_failed and action_set == "target_hotspot":
+            priority_name = "hotspot"
+            action_kind = "increase_hotspot_priority"
+            old = plan.priorities.hotspot
+        else:
+            return PlanningTrajectory3D(case.case_id, tuple(steps), "different_action_required")
         new = min(old * config.priority_factor, config.priority_ceiling)
         if new <= old:
             return PlanningTrajectory3D(case.case_id, tuple(steps), "priority_ceiling")
-        priorities = replace(plan.priorities, target=new)
+        priorities = replace(plan.priorities, **{priority_name: new})
         action = ManualAction(
-            "increase_target_priority",
-            f"Increase target priority {old:.2f} -> {new:.2f}",
+            action_kind,
+            f"Increase {priority_name.replace('_', '-')} priority {old:.2f} -> {new:.2f}",
             old_value=old,
             new_value=new,
         )
@@ -180,6 +234,8 @@ def main() -> None:
     parser.add_argument("--grid-size", type=int, default=64)
     parser.add_argument("--fluence-size", type=int, default=24)
     parser.add_argument("--iterations", type=int, default=300)
+    parser.add_argument("--max-steps", type=int, default=5)
+    parser.add_argument("--action-set", choices=("target_only", "target_hotspot"), default="target_only")
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--output-dir", type=Path, default=Path("outputs/prostate_manual_target_trajectory"))
     args = parser.parse_args()
@@ -195,7 +251,7 @@ def main() -> None:
         if row["split"] == "validation" and row["difficulty"] == "hard"
     ][: args.cases]
     config = HighLevelSearchConfig3D(
-        max_steps=3,
+        max_steps=args.max_steps,
         beam_width=1,
         add_candidates=0,
         remove_candidates=0,
@@ -231,7 +287,7 @@ def main() -> None:
             device=device,
             dtype=torch.float32,
         )
-        trajectory = run_manual_target_sequence(case, engine, mode.active_beams, config)
+        trajectory = run_manual_target_sequence(case, engine, mode.active_beams, config, args.action_set)
         rows.extend(step_row(case, step) for step in trajectory.steps)
         trajectories.append(trajectory)
         cases.append(case)
@@ -251,14 +307,16 @@ def main() -> None:
         writer.writeheader()
         writer.writerows(rows)
     save_trajectory_plot(rows, args.output_dir / "01_manual_trajectory.png")
+    save_action_map(rows, args.output_dir / "02_action_map.png")
     longest = max(range(len(trajectories)), key=lambda value: len(trajectories[value].steps))
-    save_representative_review(cases[longest], trajectories[longest], args.output_dir / "02_representative_plan_review.png")
+    save_representative_review(cases[longest], trajectories[longest], args.output_dir / "03_representative_plan_review.png")
     review_dir = args.output_dir / "review_plans"
     review_dir.mkdir(exist_ok=True)
     for case, trajectory in zip(cases, trajectories, strict=True):
         save_representative_review(case, trajectory, review_dir / f"{case.case_id}.png")
     summary = {
-        "status": "manual target-priority trajectory calibration",
+        "status": "manual target and hot-spot priority trajectory calibration",
+        "action_set": args.action_set,
         "cases": len(trajectories),
         "acceptable_cases": sum(trajectory.stopping_reason == "acceptable" for trajectory in trajectories),
         "changes_per_case": [len(trajectory.steps) - 1 for trajectory in trajectories],

@@ -204,6 +204,20 @@ uv run python scripts/start_prostate_clinical_calibration.py --pilot manual_traj
 
 This sequence starts with a fixed seven-field plan. It increases the target priority by a factor of 1.75, reoptimizes the fluence, and reviews the same declared acceptance criteria. It applies a second increase only when required. Beam count, beam angles, and OAR priorities remain fixed in this calibration. The output includes every action, each plan state, a paired dose and DVH review image, and a local progress page.
 
+The larger hard-case check uses all 15 available hard validation cases:
+
+```powershell
+uv run python scripts/start_prostate_clinical_calibration.py --pilot manual_trajectory --cases 15 --port 8769 --output-dir outputs/prostate_manual_target_trajectory_hard15
+```
+
+The corrected sequence includes a hot-spot response after target coverage passes:
+
+```powershell
+uv run python scripts/start_prostate_clinical_calibration.py --pilot manual_trajectory --action-set target_hotspot --cases 15 --port 8770 --output-dir outputs/prostate_manual_target_hotspot_hard15
+```
+
+This rule does not continue to increase target priority when only the engineering D02 limit fails. It increases hot-spot priority, reoptimizes, and reviews target coverage again.
+
 For a trajectory dataset, activate the objective and the separate protocol-inspired acceptance tier with `--clinical-dvh-weight 5 --prostate-protocol-tier variation_acceptable`. The protocol tier is stored in the attempt manifest and must use the same value during policy training and rollout.
 
 Generate matched parametric prostate demonstrations with a 64-cubed dose grid and 12 x 12 fluence maps:

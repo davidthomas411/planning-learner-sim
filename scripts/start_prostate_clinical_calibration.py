@@ -20,6 +20,12 @@ def detached_flags() -> int:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Start local DVH calibration with a token-free status page")
     parser.add_argument("--port", type=int, default=8766)
+    parser.add_argument("--cases", type=int, default=4)
+    parser.add_argument(
+        "--action-set",
+        choices=("target_only", "target_hotspot"),
+        default="target_only",
+    )
     parser.add_argument("--serve-only", action="store_true")
     parser.add_argument(
         "--pilot",
@@ -63,6 +69,8 @@ def main() -> None:
             run_arguments = [
                 sys.executable,
                 "scripts/run_prostate_target_priority_pilot.py",
+                "--cases",
+                str(args.cases),
                 "--output-dir",
                 str(output_dir),
             ]
@@ -70,6 +78,10 @@ def main() -> None:
             run_arguments = [
                 sys.executable,
                 "scripts/run_prostate_manual_target_trajectory.py",
+                "--cases",
+                str(args.cases),
+                "--action-set",
+                args.action_set,
                 "--output-dir",
                 str(output_dir),
             ]
