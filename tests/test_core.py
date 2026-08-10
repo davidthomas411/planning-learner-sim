@@ -11,6 +11,7 @@ from dosim_sim import (
     run_manual_planner,
     run_high_level_oracle,
     generate_case_3d,
+    generate_prostate_case_3d,
     ImplicitDoseEngine3D,
     optimize_fluence_3d,
 )
@@ -165,6 +166,27 @@ def test_3d_difficulty_generator_is_reproducible_and_stratified() -> None:
     hard_overlap = sum(np.count_nonzero(hard.target & mask) for mask in hard.oars)
     assert easy_overlap == 0
     assert hard_overlap > 0
+
+
+def test_prostate_phantom_has_named_pelvic_structures() -> None:
+    case = generate_prostate_case_3d(177, grid_size=32, difficulty="moderate")
+    repeat = generate_prostate_case_3d(177, grid_size=32, difficulty="moderate")
+    assert case.anatomy == "prostate"
+    assert case.structure_names == ("bladder", "rectum", "femoral_heads")
+    assert len(case.oars) == 3
+    assert np.array_equal(case.target, repeat.target)
+    assert all(np.count_nonzero(mask) > 0 for mask in (case.target, *case.oars))
+    assert not np.any(case.target & ~case.body)
+
+    coordinates = np.meshgrid(case.axis, case.axis, case.axis, indexing="ij")
+    target_center = np.array([values[case.target].mean() for values in coordinates])
+    bladder_center = np.array([values[case.oars[0]].mean() for values in coordinates])
+    rectum_center = np.array([values[case.oars[1]].mean() for values in coordinates])
+    assert bladder_center[1] > target_center[1]
+    assert bladder_center[2] > target_center[2]
+    assert rectum_center[1] < target_center[1]
+    assert np.any(case.oars[2][: case.axis.size // 2])
+    assert np.any(case.oars[2][case.axis.size // 2 :])
 
 
 def test_delivery_complexity_modes_have_expected_angular_sampling() -> None:

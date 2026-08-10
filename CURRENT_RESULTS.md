@@ -111,9 +111,15 @@ Two independent deterministic smoke runs produced byte-identical case-metric fil
 
 This result demonstrates a matched, reproducible comparison path and supports proceeding to the variance pilot. It is not a primary result: the cohort is small, the effect is not consistent across initialization seeds, and the development cases were not drawn from the frozen train/validation manifest.
 
+## Three-dimensional image encoder and prostate phantom
+
+The matched image-plus-scalar policy uses 11 current-state volume channels: body, target, three OAR masks, dose, target underdose, target hot spot, and three OAR excess-dose maps. Both conditions use the same 93,476-parameter network. The endpoint condition does not receive action labels. A one-seed development run used 24 training cases and all 60 held-out validation cases. The endpoint acceptable-plan rate was 46.7%, and the trajectory-supervised rate was 58.3%. Mean violation decreased from 0.177 to 0.106. This is a validation-stage engineering result. It is not a primary result and has no multi-seed confidence interval.
+
+A prostate-specific parametric generator now produces a pelvic body, PTV-like prostate target, bladder, rectal wall, and two femoral-head shapes. The femoral heads share one priority group. Across 300 anatomy-only cases, all structures were valid. Median total target-OAR overlap fractions were 0.000, 0.056, and 0.243 for easy, moderate, and hard cases. At 64 cubed with 12 x 12 fluence maps, four of four sampled hard cases were reachable by the independent reference optimizer. An end-to-end dataset smoke test retained one easy, one moderate, and one hard case in 8.0 seconds. Both the bounded manual-level search and the reference optimizer met all dose rules. The selected prostate policy input is 32 cubed. A larger retained prostate demonstration dataset has not yet been generated.
+
 ## Current decision
 
-Environment, demonstration, shared rollout, action-mask parity, and the primary iterative comparator have passed their current engineering checks. The 300-case dataset and ten-seed variance pilot are complete. The calibrated trajectory condition improved validation acceptability and violation score, but hard-case acceptability remained 6%. The 10,000-case experiment should not begin until the state encoder and hard-case performance are reviewed. The present model is a compact scalar/centroid multilayer perceptron, not the three-dimensional convolutional encoder specified for the main study.
+Environment, demonstration, shared rollout, action-mask parity, and the primary iterative comparator have passed their current engineering checks. The 300-case generic dataset and ten-seed scalar-model variance pilot are complete. The matched three-dimensional image encoder now runs end to end. The prostate generator has passed anatomy, resolution, reference-reachability, and three-case dataset checks. The next compute gate is a retained 300-case prostate dataset followed by a multi-seed image-policy variance pilot. The 10,000-case experiment should not begin until those results and the TCIA contour-import sample have been reviewed.
 
 ## Local 300-case train/validation dataset
 

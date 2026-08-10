@@ -17,7 +17,7 @@ from .optimizer3d import (
     objective_value_3d,
     optimize_fluence_3d,
 )
-from .volume3d import SyntheticCase3D, generate_case_3d
+from .volume3d import SyntheticCase3D, generate_case_3d, generate_prostate_case_3d
 from .planning3d import (
     HighLevelSearchConfig3D,
     PlanningStep3D,
@@ -27,6 +27,7 @@ from .planning3d import (
     run_high_level_search_3d,
     run_reference_optimizer_3d,
 )
+from .representation3d import VOLUME_CHANNEL_NAMES, state_volume_3d
 from .policy3d import legal_action_mask_3d, rollout_policy_3d
 from .splits import SplitConfig, SplitRow, build_split_rows, split_manifest_sha256
 
@@ -59,6 +60,8 @@ __all__ = [
     "PlanningStep3D",
     "PlanningTrajectory3D",
     "clinical_violation_score_3d",
+    "VOLUME_CHANNEL_NAMES",
+    "state_volume_3d",
     "is_acceptable_3d",
     "run_high_level_search_3d",
     "run_reference_optimizer_3d",
@@ -74,6 +77,7 @@ __all__ = [
     "evaluate_plan",
     "generate_case",
     "generate_case_3d",
+    "generate_prostate_case_3d",
     "delivery_mode_3d",
     "standard_delivery_modes_3d",
     "optimize_beamlets",

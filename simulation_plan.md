@@ -1,8 +1,8 @@
 # Simulation Plan: Do Planning Trajectories Add Learnable Signal Beyond Endpoints?
 
-## Current implementation status (2026-08-09)
+## Current implementation status (2026-08-10)
 
-The 2D nested planner, high-level search oracle, matched dataset pilot, implicit 3D NumPy/PyTorch backends, and pre-trajectory 10,000-case split manifest are executable. All 16 tests pass with CUDA-enabled Torch on the local RTX 4060. Complete 96-, 128-, 192-, and 256-cubed demonstration trajectories reach the provisional constraints; the 96-cubed trajectory takes 4.26 seconds and the 256-cubed trajectory takes 140.95 seconds locally. The endpoint-versus-trajectory learner comparison and direct four-A100 benchmark have not started. See `CURRENT_RESULTS.md` and `LOCAL_GPU_RESULTS.md` for measured values and the boundary between demonstrated mechanics and untested scientific claims.
+The 2D nested planner, high-level search oracle, matched 300-case generic dataset, implicit 3D NumPy/PyTorch backends, matched three-dimensional image-plus-scalar policy, and parametric prostate generator are executable. All 23 tests pass with CUDA-enabled Torch on the local RTX 4060. A one-seed image-policy pilot and an end-to-end prostate dataset smoke test have completed. The four-A100 benchmark has not started. See `CURRENT_RESULTS.md` and `LOCAL_GPU_RESULTS.md` for measured values and the boundary between demonstrated mechanics and untested scientific claims.
 
 ## 1. Decision the simulation must support
 
@@ -58,6 +58,14 @@ Keep the 2D 64 x 64 environment as a fast correctness and ablation harness, but 
 - 128 x 128 x 128 for a prespecified resolution sensitivity analysis.
 
 Use 12 coplanar candidate angles initially and 16 x 16 fluence pixels per beam for the 96-cubed and 128-cubed runs. Do not save a dense voxel-by-beamlet influence matrix per case: at 96-cubed this would require about 10.1 GiB in float32 for 12 beams with 16 x 16 fluence maps. Instead, save reproducible geometry parameters and evaluate an implicit forward dose operator plus its exact adjoint. Use float16 or bfloat16 for batched GPU kernels, float32 accumulation for plan metrics, and split independent cases across the four A100 GPUs. Add noncoplanar/couch-angle actions only as a later OOD condition after the coplanar environment passes validation.
+
+### 3.2b Prostate-specific anatomy condition
+
+Use a parametric pelvic body, a PTV-like prostate target, bladder, rectal wall, and separate left and right femoral-head shapes. Treat both femoral heads as one shared OAR priority group in the first experiment. Vary body dimensions, prostate and target dimensions, bladder filling, rectal dimensions, femoral-head position, target–OAR separation, and overlap by seed. Add a superior seminal-vesicle-like target extension and restricted beam availability in hard cases.
+
+Use a 64 x 64 x 64 dose grid, a 32 x 32 x 32 policy image input, and 12 x 12 fluence pixels per beam. Initial local tests showed that 4 x 4 and 8 x 8 fluence maps were too coarse for some prostate targets. A 12 x 12 map made four sampled hard cases reachable by the independent reference optimizer. Keep the generic-shape cohort as a development and distribution-shift condition.
+
+After the synthetic prostate comparison is stable, import a small external contour cohort from the TCIA Prostate Anatomical Edge Cases collection. Use its planning CT, prostate, bladder, rectum, and bilateral femoral-head contours for an external-anatomy test. Do not add CT-density dose correction until the contour-only experiment passes. Evaluate MAISI as a later anatomy augmentation source because its published segmentation labels include prostate and bladder but do not provide the complete prostate radiotherapy structure set required here.
 
 Treat denser angular sampling as a separate delivery-complexity factor. The initial comparison will include a 180-degree arc-like set sampled every 10 degrees (19 control points) and a 360-degree set sampled every 10 degrees (36 control points). These conditions assign independent fluence maps to sampled gantry angles and must not be described as delivery-realistic VMAT until MLC-aperture continuity, cumulative monitor units, dose-rate modulation, and gantry-speed constraints are represented. High-level arc actions may change an arc's start or stop angle, expand or contract its span, rotate the span, add an avoidance sector, or add a second arc. Individual control-point fluence changes remain inside the automated optimizer and are excluded from manual labels.
 

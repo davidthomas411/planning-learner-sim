@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from dataclasses import replace
 
 torch = pytest.importorskip("torch")
 
@@ -18,6 +19,7 @@ from dosim_sim.planning3d import (
 )
 from dosim_sim.dataset3d import ACTION_TO_INDEX
 from dosim_sim.policy3d import action_settings_3d, initial_policy_step_3d, legal_action_mask_3d
+from dosim_sim.representation3d import VOLUME_CHANNEL_NAMES, state_volume_3d
 
 
 def test_torch_forward_and_adjoint_match_numpy_reference() -> None:
@@ -96,3 +98,38 @@ def test_policy_mask_and_action_translation_enforce_manual_bounds() -> None:
     assert action is not None and action.kind == "increase_target_priority"
     assert beams == step.plan.active_beams
     assert priorities.target > step.plan.priorities.target
+
+
+def test_3d_policy_volume_contains_current_clinical_information() -> None:
+    case = generate_case_3d(92, grid_size=24, difficulty="easy")
+    angles = tuple(float(value) for value in range(0, 360, 30))
+    engine = TorchImplicitDoseEngine3D(case, angles, fluence_size=4)
+    cfg = HighLevelSearchConfig3D(max_steps=2, optimizer_iterations=2)
+    step = initial_policy_step_3d(case, engine, cfg)
+    volume = state_volume_3d(case, step, cfg, output_size=16)
+    assert volume.shape == (len(VOLUME_CHANNEL_NAMES), 16, 16, 16)
+    assert torch.isfinite(volume).all()
+    assert torch.any(volume[VOLUME_CHANNEL_NAMES.index("body")] > 0)
+    assert torch.any(volume[VOLUME_CHANNEL_NAMES.index("target")] > 0)
+    assert torch.any(volume[VOLUME_CHANNEL_NAMES.index("oar_0")] > 0)
+    assert torch.all(volume[VOLUME_CHANNEL_NAMES.index("oar_1")] == 0)
+    assert torch.all(volume[VOLUME_CHANNEL_NAMES.index("oar_2")] == 0)
+
+
+def test_3d_policy_volume_changes_with_current_dose_but_not_structure_masks() -> None:
+    case = generate_case_3d(93, grid_size=24, difficulty="moderate")
+    angles = tuple(float(value) for value in range(0, 360, 30))
+    engine = TorchImplicitDoseEngine3D(case, angles, fluence_size=4)
+    cfg = HighLevelSearchConfig3D(max_steps=2, optimizer_iterations=2)
+    step = initial_policy_step_3d(case, engine, cfg)
+    changed_plan = replace(step.plan, dose=step.plan.dose + 0.2)
+    changed_step = replace(step, plan=changed_plan)
+    first = state_volume_3d(case, step, cfg, output_size=16)
+    changed = state_volume_3d(case, changed_step, cfg, output_size=16)
+    for name in ("body", "target", "oar_0", "oar_1", "oar_2"):
+        index = VOLUME_CHANNEL_NAMES.index(name)
+        assert torch.equal(first[index], changed[index])
+    assert not torch.equal(
+        first[VOLUME_CHANNEL_NAMES.index("dose")],
+        changed[VOLUME_CHANNEL_NAMES.index("dose")],
+    )

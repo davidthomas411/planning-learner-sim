@@ -1,0 +1,20 @@
+{
+  "status": "matched development dataset; not a learner result",
+  "anatomy": "prostate",
+  "attempted": 3,
+  "retained": 3,
+  "elapsed_seconds": 8.029709300026298,
+  "case_ids_identical": true,
+  "endpoint_contains_trajectory_key": false,
+  "feature_count": 61,
+  "final_setting_count": 17,
+  "transition_count": 9,
+  "retained_by_difficulty": {
+    "easy": 1,
+    "moderate": 1,
+    "hard": 1
+  },
+  "split": null,
+  "start_ordinal": null,
+  "reference_acceptable_among_retained": 1.0
+}

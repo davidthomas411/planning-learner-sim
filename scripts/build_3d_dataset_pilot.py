@@ -17,7 +17,7 @@ from dosim_sim.planning3d import (
     run_reference_optimizer_3d,
 )
 from dosim_sim.torch_dose3d import TorchImplicitDoseEngine3D
-from dosim_sim.volume3d import generate_case_3d
+from dosim_sim.volume3d import generate_case_3d, generate_prostate_case_3d
 
 
 ANGLES = tuple(float(value) for value in range(0, 360, 30))
@@ -97,6 +97,7 @@ def main() -> None:
     parser.add_argument("--split", choices=("train", "validation", "iid_test", "ood_test"))
     parser.add_argument("--start-ordinal", type=int, default=0)
     parser.add_argument("--grid-size", type=int, default=32)
+    parser.add_argument("--anatomy", choices=("generic", "prostate"), default="generic")
     parser.add_argument("--fluence-size", type=int, default=4)
     parser.add_argument("--iterations", type=int, default=20)
     parser.add_argument("--deep-iterations", type=int, default=40)
@@ -139,7 +140,8 @@ def main() -> None:
             break
         seed = spec["seed"]
         difficulty = spec["difficulty"]
-        case = generate_case_3d(seed, args.grid_size, difficulty=difficulty)
+        generator = generate_prostate_case_3d if args.anatomy == "prostate" else generate_case_3d
+        case = generator(seed, args.grid_size, difficulty=difficulty)
         engine = TorchImplicitDoseEngine3D(case, ANGLES, args.fluence_size, device=device, dtype=torch.float16)
         trajectory = run_high_level_search_3d(case, engine, shallow_cfg)
         reference = run_reference_optimizer_3d(case, engine, args.reference_iterations)
@@ -154,6 +156,7 @@ def main() -> None:
             "seed": seed,
             "case_id": case.case_id,
             "difficulty": difficulty,
+            "anatomy": args.anatomy,
             "split": spec["split"],
             "split_ordinal": spec["split_ordinal"],
             "search_acceptable": search_ok,
@@ -200,10 +203,10 @@ def main() -> None:
     trajectory_path = args.output_dir / "trajectory_view.jsonl"
     with endpoint_path.open("w", encoding="utf-8") as handle:
         for row in retained:
-            handle.write(json.dumps({key: row[key] for key in ("case_id", "seed", "difficulty", "split", "split_ordinal", "initial_features", "final_features", "final_settings")}, separators=(",", ":")) + "\n")
+            handle.write(json.dumps({key: row[key] for key in ("case_id", "seed", "difficulty", "anatomy", "split", "split_ordinal", "initial_features", "final_features", "final_settings")}, separators=(",", ":")) + "\n")
     with trajectory_path.open("w", encoding="utf-8") as handle:
         for row in retained:
-            handle.write(json.dumps({key: row[key] for key in ("case_id", "seed", "difficulty", "split", "split_ordinal", "initial_features", "final_features", "final_settings", "trajectory")}, separators=(",", ":")) + "\n")
+            handle.write(json.dumps({key: row[key] for key in ("case_id", "seed", "difficulty", "anatomy", "split", "split_ordinal", "initial_features", "final_features", "final_settings", "trajectory")}, separators=(",", ":")) + "\n")
     with (args.output_dir / "attempt_manifest.jsonl").open("w", encoding="utf-8") as handle:
         for row in attempts:
             handle.write(json.dumps(row, separators=(",", ":")) + "\n")
@@ -212,6 +215,7 @@ def main() -> None:
     case_ids_trajectory = [json.loads(line)["case_id"] for line in trajectory_path.read_text().splitlines()]
     summary = {
         "status": "matched development dataset; not a learner result",
+        "anatomy": args.anatomy,
         "attempted": len(attempts),
         "retained": len(retained),
         "elapsed_seconds": elapsed,

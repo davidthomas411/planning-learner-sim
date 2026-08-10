@@ -86,6 +86,8 @@ def main() -> None:
         shared = ("seed", "difficulty", "split", "split_ordinal", "initial_features", "final_features", "final_settings")
         if any(endpoint[field] != trajectory[field] for field in shared):
             raise ValueError(f"endpoint/trajectory mismatch for {case_id}")
+        if endpoint.get("anatomy", "generic") != trajectory.get("anatomy", "generic"):
+            raise ValueError(f"endpoint/trajectory anatomy mismatch for {case_id}")
 
     counts = {
         split: sum(row["split"] == split for row in endpoint_rows)
@@ -114,6 +116,7 @@ def main() -> None:
     trajectory_lengths = [len(row["trajectory"]) - 1 for row in trajectory_rows]
     summary = {
         "status": "validated merged train/validation dataset",
+        "anatomies": sorted({row.get("anatomy", "generic") for row in endpoint_rows}),
         "shards": [str(path) for path in args.shards],
         "retained_by_split": counts,
         "attempted": len(attempt_rows),
