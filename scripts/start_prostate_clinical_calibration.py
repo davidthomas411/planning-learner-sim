@@ -19,7 +19,8 @@ def detached_flags() -> int:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Start local DVH calibration with a token-free status page")
-    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--port", type=int, default=8766)
+    parser.add_argument("--serve-only", action="store_true")
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -51,34 +52,36 @@ def main() -> None:
         creationflags=flags,
         close_fds=True,
     )
-    run = subprocess.Popen(
-        [
-            sys.executable,
-            "scripts/run_prostate_clinical_dvh_pilot.py",
-            "--cases-per-stratum",
-            "4",
-            "--grid-size",
-            "64",
-            "--fluence-size",
-            "24",
-            "--iterations",
-            "300",
-            "--weights",
-            "5",
-            "--device",
-            "cuda:0",
-            "--output-dir",
-            str(output_dir),
-        ],
-        stdin=subprocess.DEVNULL,
-        stdout=run_stdout,
-        stderr=run_stderr,
-        creationflags=flags,
-        close_fds=True,
-    )
+    run = None
+    if not args.serve_only:
+        run = subprocess.Popen(
+            [
+                sys.executable,
+                "scripts/run_prostate_clinical_dvh_pilot.py",
+                "--cases-per-stratum",
+                "4",
+                "--grid-size",
+                "64",
+                "--fluence-size",
+                "24",
+                "--iterations",
+                "300",
+                "--weights",
+                "5",
+                "--device",
+                "cuda:0",
+                "--output-dir",
+                str(output_dir),
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=run_stdout,
+            stderr=run_stderr,
+            creationflags=flags,
+            close_fds=True,
+        )
     payload = {
         "server_pid": server.pid,
-        "run_pid": run.pid,
+        "run_pid": run.pid if run else None,
         "status_url": f"http://127.0.0.1:{args.port}/status.html",
         "output_dir": str(output_dir),
     }
