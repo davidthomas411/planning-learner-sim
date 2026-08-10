@@ -175,6 +175,8 @@ An anatomy-only beam-angle rule was evaluated after priority calibration. The ru
 
 The local status page now includes a live figure gallery. Pilot scripts rewrite available summary figures after each completed case, and the browser refreshes both progress and images every two seconds without model calls.
 
+New launcher-created output folders receive a local timestamp in `YYYYMMDD_HHMMSS` format. Live figures are limited to approximately 50 evenly spaced updates for large runs; numerical progress still updates after every case. This reduces file-rendering overhead and does not alter dose calculation, optimization, plan acceptance, or saved case metrics.
+
 The calibration runner now writes an atomic `progress.json` update after each completed plan and a local `status.html` page that polls it every two seconds. The polling loop is independent of the model and consumes no tokens. A detached local launcher starts the GPU run and HTTP status server without opening visible console windows and records both process identifiers.
 
 ## Local 300-case train/validation dataset

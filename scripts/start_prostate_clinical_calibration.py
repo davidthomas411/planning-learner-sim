@@ -6,6 +6,7 @@ import argparse
 import json
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 
 
@@ -15,6 +16,13 @@ def detached_flags() -> int:
         | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
         | getattr(subprocess, "CREATE_NO_WINDOW", 0)
     )
+
+
+def timestamped_output_dir(output_dir: Path, current_time: datetime | None = None) -> tuple[Path, str]:
+    now = current_time or datetime.now().astimezone()
+    timestamp = now.strftime("%Y%m%d_%H%M%S")
+    resolved = output_dir.resolve()
+    return resolved.with_name(f"{resolved.name}_{timestamp}"), timestamp
 
 
 def main() -> None:
@@ -30,6 +38,11 @@ def main() -> None:
     )
     parser.add_argument("--serve-only", action="store_true")
     parser.add_argument(
+        "--no-timestamp",
+        action="store_true",
+        help="Use the output directory exactly as given instead of adding a run timestamp",
+    )
+    parser.add_argument(
         "--pilot",
         choices=("clinical_dvh", "target_priority", "manual_trajectory", "expert_angle"),
         default="clinical_dvh",
@@ -41,6 +54,9 @@ def main() -> None:
     )
     args = parser.parse_args()
     output_dir = args.output_dir.resolve()
+    run_timestamp = None
+    if not args.serve_only and not args.no_timestamp:
+        output_dir, run_timestamp = timestamped_output_dir(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     flags = detached_flags()
 
@@ -132,6 +148,7 @@ def main() -> None:
         "run_pid": run.pid if run else None,
         "status_url": f"http://127.0.0.1:{args.port}/status.html",
         "output_dir": str(output_dir),
+        "run_timestamp": run_timestamp,
     }
     (output_dir / "processes.json").write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(payload, indent=2))

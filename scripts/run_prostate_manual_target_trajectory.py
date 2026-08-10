@@ -29,7 +29,13 @@ from dosim_sim.prostate_protocol import PRESCRIPTION_GY
 from dosim_sim.torch_dose3d import TorchImplicitDoseEngine3D, optimize_fluence_3d_torch
 from dosim_sim.volume3d import generate_prostate_case_3d
 from dosim_sim.manual_planning import ManualAction
-from run_prostate_clinical_dvh_pilot import STATUS_PAGE, cumulative_dvh, load_records, write_progress
+from run_prostate_clinical_dvh_pilot import (
+    STATUS_PAGE,
+    cumulative_dvh,
+    load_records,
+    should_update_figures,
+    write_progress,
+)
 
 
 def step_row(case, step) -> dict:
@@ -291,15 +297,18 @@ def main() -> None:
         rows.extend(step_row(case, step) for step in trajectory.steps)
         trajectories.append(trajectory)
         cases.append(case)
-        save_trajectory_plot(rows, args.output_dir / "01_manual_trajectory.png")
-        if any(int(row["step"]) > 0 for row in rows):
-            save_action_map(rows, args.output_dir / "02_action_map.png")
-        longest_so_far = max(range(len(trajectories)), key=lambda value: len(trajectories[value].steps))
-        save_representative_review(
-            cases[longest_so_far],
-            trajectories[longest_so_far],
-            args.output_dir / "03_representative_plan_review.png",
-        )
+        if should_update_figures(index, len(records)):
+            save_trajectory_plot(rows, args.output_dir / "01_manual_trajectory.png")
+            if any(int(row["step"]) > 0 for row in rows):
+                save_action_map(rows, args.output_dir / "02_action_map.png")
+            longest_so_far = max(
+                range(len(trajectories)), key=lambda value: len(trajectories[value].steps)
+            )
+            save_representative_review(
+                cases[longest_so_far],
+                trajectories[longest_so_far],
+                args.output_dir / "03_representative_plan_review.png",
+            )
         write_progress(
             args.output_dir,
             index,

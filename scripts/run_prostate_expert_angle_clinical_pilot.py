@@ -21,7 +21,7 @@ from dosim_sim.planning3d import (
 )
 from dosim_sim.torch_dose3d import TorchImplicitDoseEngine3D, optimize_fluence_3d_torch
 from dosim_sim.volume3d import generate_prostate_case_3d
-from run_prostate_clinical_dvh_pilot import STATUS_PAGE, write_progress
+from run_prostate_clinical_dvh_pilot import STATUS_PAGE, should_update_figures, write_progress
 from run_prostate_expert_angle_pilot import minimum_angle_gap, save_review
 
 
@@ -186,9 +186,10 @@ def main() -> None:
         if reduction > best_reduction:
             representative = (case, initial, current, actions)
             best_reduction = reduction
-        save_summary(rows, args.output_dir / "01_angle_shift_summary.png")
-        if representative is not None:
-            save_review(*representative, args.output_dir / "02_representative_plan.png")
+        if should_update_figures(index, len(settings)):
+            save_summary(rows, args.output_dir / "01_angle_shift_summary.png")
+            if representative is not None:
+                save_review(*representative, args.output_dir / "02_representative_plan.png")
         write_progress(args.output_dir, index, len(settings), started, last_case=case.case_id, unit="cases")
         print(f"[{index}/{len(settings)}] {case.case_id}: {len(actions)} shifts", flush=True)
 

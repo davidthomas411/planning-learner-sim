@@ -54,6 +54,8 @@ const figures=[
 ['02_representative_plan.png','Representative beam-angle plan'],
 ['01_target_priority_response.png','Target-priority response'],
 ['02_target_priority_pass_rate.png','Target-priority pass rate'],
+['01_protocol_pass_summary.png','Protocol-goal pass summary'],
+['02_representative_protocol_dvhs.png','Representative protocol DVHs'],
 ['01_pass_summary.png','Plan acceptance summary'],
 ['02_representative_dvhs.png','Representative DVHs'],
 ['03_constraint_review.png','Constraint review']];
@@ -105,6 +107,13 @@ def write_progress(
     temporary = output_dir / "progress.json.tmp"
     temporary.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     temporary.replace(output_dir / "progress.json")
+
+
+def should_update_figures(completed: int, total: int, maximum_updates: int = 50) -> bool:
+    """Limit rendering overhead while retaining regular visual updates."""
+
+    interval = max(1, int(np.ceil(total / maximum_updates)))
+    return completed == total or completed % interval == 0
 
 
 def load_records(path: Path) -> list[dict]:
@@ -252,6 +261,28 @@ def main() -> None:
             if case.difficulty == "moderate" and representative_case is None:
                 representative_plans[weight] = plan
             completed += 1
+            if should_update_figures(completed, total):
+                present_weights = tuple(
+                    float(value)
+                    for value in args.weights
+                    if any(item["clinical_dvh_weight"] == value for item in rows)
+                )
+                save_pass_summary(
+                    rows,
+                    present_weights,
+                    args.output_dir / "01_protocol_pass_summary.png",
+                )
+                if representative_plans:
+                    save_representative_dvhs(
+                        case,
+                        representative_plans,
+                        args.output_dir / "02_representative_protocol_dvhs.png",
+                    )
+                save_constraint_review(
+                    rows,
+                    float(weight),
+                    args.output_dir / "03_constraint_review.png",
+                )
             write_progress(
                 args.output_dir,
                 completed,

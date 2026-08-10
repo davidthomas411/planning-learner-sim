@@ -226,6 +226,12 @@ uv run python scripts/start_prostate_clinical_calibration.py --pilot expert_angl
 
 The status page displays available summary and plan-review figures below the progress bar. The figures are regenerated after each completed case and refresh in the browser every two seconds. The current beam-eye-view shift rule did not pass the calibration gate and must not be used to generate demonstrations.
 
+The launcher adds a local timestamp to every new output folder. For example, `outputs/prostate_next_run` becomes `outputs/prostate_next_run_20260810_153045`. The launcher prints the exact path and stores it in `processes.json`. Use `--no-timestamp` only when an exact path is required. `--serve-only` always uses the exact supplied path so that an existing run can be reopened.
+
+For large runs, live summary figures are updated at most 50 times. The progress file still updates after every completed case. This limit reduces plotting overhead without changing any simulation result.
+
+The presimulation profiling findings and the four-A100 throughput gate are defined in `PERFORMANCE_PLAN.md`.
+
 For a trajectory dataset, activate the objective and the separate protocol-inspired acceptance tier with `--clinical-dvh-weight 5 --prostate-protocol-tier variation_acceptable`. The protocol tier is stored in the attempt manifest and must use the same value during policy training and rollout.
 
 Generate matched parametric prostate demonstrations with a 64-cubed dose grid and 12 x 12 fluence maps:

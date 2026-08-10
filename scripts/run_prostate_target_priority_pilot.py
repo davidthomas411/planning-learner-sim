@@ -17,7 +17,12 @@ from dosim_sim.prostate_protocol import (
 )
 from dosim_sim.torch_dose3d import TorchImplicitDoseEngine3D, optimize_fluence_3d_torch
 from dosim_sim.volume3d import generate_prostate_case_3d
-from run_prostate_clinical_dvh_pilot import STATUS_PAGE, load_records, write_progress
+from run_prostate_clinical_dvh_pilot import (
+    STATUS_PAGE,
+    load_records,
+    should_update_figures,
+    write_progress,
+)
 
 
 def save_target_response(rows: list[dict], path: Path) -> None:
@@ -133,8 +138,9 @@ def main() -> None:
                 "r50": plan.metrics.r50,
             })
             completed += 1
-            save_target_response(rows, args.output_dir / "01_target_priority_response.png")
-            save_pass_summary(rows, args.output_dir / "02_target_priority_pass_rate.png")
+            if should_update_figures(completed, total):
+                save_target_response(rows, args.output_dir / "01_target_priority_response.png")
+                save_pass_summary(rows, args.output_dir / "02_target_priority_pass_rate.png")
             write_progress(
                 args.output_dir,
                 completed,
