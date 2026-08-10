@@ -178,6 +178,23 @@ uv run python scripts/build_3d_dataset_pilot.py --split-manifest outputs/splits/
 
 `scripts/merge_3d_dataset_shards.py` performs the required duplicate, partition, retained-count, and endpoint/trajectory identity checks before writing a canonical merged dataset. The iterative trainer accepts explicit `--train-cases` and `--heldout-cases` values and uses the stored manifest partition rather than randomly repartitioning merged pilot data.
 
+## Run the prostate anatomy path
+
+Generate matched parametric prostate demonstrations with a 64-cubed dose grid and 12 x 12 fluence maps:
+
+```powershell
+uv run python scripts/build_3d_dataset_pilot.py --anatomy prostate --grid-size 64 --fluence-size 12 --iterations 20 --deep-iterations 40 --reference-iterations 240 --retained-cases 300 --output-dir outputs/prostate_300
+```
+
+Download one public TCIA subject and render the imported contours:
+
+```powershell
+uv run python scripts/download_tcia_prostate_subject.py Prostate-AEC-051
+uv run --extra clinical python scripts/render_tcia_prostate_case.py data/tcia/Prostate-AEC-051 --grid-size 64 --output outputs/tcia_prostate_preview.png
+```
+
+The TCIA contour-only stress test uses at least 24 x 24 fluence maps. Raw DICOM data under `data/tcia` is excluded from Git.
+
 ## How methods and results will be shown
 
 The full experiment will use a fixed visual sequence:

@@ -26,3 +26,6 @@ wandb/
 ~$*.docx
 .docx_review/
 LibreOffice_*_Machine_X64_msi_en-US/
+
+# External clinical imaging data
+data/tcia/

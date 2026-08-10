@@ -58,6 +58,8 @@ The primary synthetic cohort will represent prostate radiotherapy. Each case wil
 
 The prostate development and primary synthetic grid will contain 64 × 64 × 64 voxels. The policy image encoder will receive 32 × 32 × 32 resampled channels. The primary beam set will contain 12 coplanar candidate gantry angles with a 12 × 12 fluence map per beam. A resolution analysis will use 96 × 96 × 96 voxels and 16 × 16 fluence maps. Noncoplanar actions will not be included in the primary experiment. They may be evaluated subsequently as a distinct distribution shift.
 
+An external-anatomy feasibility test will use planning CT and RTSTRUCT data from the Prostate Anatomical Edge Cases collection in The Cancer Imaging Archive.9 The prostate contour will receive an isotropic 5-mm expansion to form a PTV-like target. The bladder, rectum, and bilateral femoral-head contours will be mapped to the same three OAR priority groups used in the synthetic prostate cohort. A CT threshold will define the body mask. The contour field of view will be padded in physical coordinates and resampled to 64 × 64 × 64 voxels. This test will use 24 × 24 fluence maps. CT Hounsfield units will not modify dose deposition in this contour-only phase.
+
 Cases will be assigned to easy, moderate, and hard strata. Easy cases will have separated PTV and OAR volumes. Moderate cases will contain close proximity or limited overlap. Hard cases will contain greater overlap, three competing OARs, or restricted beam-angle subsets. Geometry parameters, random seed, generator version, planning goals, and all rejection reasons will be stored.
 
 ## 2.C. Three-dimensional dose surrogate
@@ -115,6 +117,10 @@ A separate continuous reference optimizer will estimate the best objective attai
 
 **Figure 3.** Parametric prostate planning phantom in axial, coronal, and sagittal planes. The prostate PTV, bladder, rectal wall, and bilateral femoral heads are shown for easy, moderate, and hard settings. This figure documents the synthetic anatomy method and is not a learner result.
 
+![Figure 4. Imported TCIA prostate anatomy](../outputs/tcia_prostate_preview.png)
+
+**Figure 4.** One imported TCIA prostate case after physical padding and resampling to the planning grid. The PTV-like target was formed by applying a 5-mm margin to the prostate contour. This figure documents the external-anatomy import method and is not a learner result.
+
 ## 2.G. Dataset construction and partitioning
 
 The planned dataset contains 10,000 valid cases: 7000 training cases, 1000 validation cases, 1000 in-distribution test cases, and 1000 out-of-distribution test cases. The in-distribution partitions will be stratified by difficulty. Partition assignment occurs before trajectory generation, and all records derived from a case remain in one partition. The existing split manifest has SHA-256 digest c9af78cd282846ee1410f9f688bbb3cb1b82294009560374e6b331310e269a2b.
@@ -165,7 +171,7 @@ An initial 300-case dataset and model pilot will precede the full computation. P
 
 The dose operator and learned models will be implemented in Python and PyTorch. Independent cases will be distributed across four NVIDIA A100 graphics processing units for dataset generation and training. Mixed-precision beam calculations may use float16 or bfloat16, while objective accumulation and reported metrics will use float32. Configuration files, package versions, source-control commit, random seeds, dataset hashes, checkpoints, and per-case outputs will be archived. Unit tests will cover geometry, forward and adjoint operators, NumPy–PyTorch agreement, inactive-beam masking, action transitions, objective components, serialization, and data-view separation.
 
-The current local implementation has completed engineering verification from 64 × 64 × 64 through 256 × 256 × 256 resolution and passes the available automated tests with a CUDA backend. A deterministic 32-case development run verified the matched iterative-policy implementation and exact repeatability of its serialized case metrics. A subsequent 300-case validation-stage pilot used a compact multilayer perceptron with scalar metrics and centroid-based geometry features. A one-seed development run then tested a matched 93,476-parameter three-dimensional image-plus-scalar policy on 24 training and 60 validation cases. The endpoint-only and trajectory-supervised acceptable-plan rates were 0.467 and 0.583, respectively; this validation-stage result was used only to verify the image path and does not enter the planned hypothesis test. The prostate generator produced 300 valid seeded anatomies. At 64 × 64 × 64 resolution with 12 × 12 fluence maps, an independent reference optimizer reached the provisional constraints in four of four sampled hard cases. Development and validation measurements are excluded from the planned hypothesis test. Formal computational results will be regenerated from the frozen version and reported in Section 3.
+The current local implementation has completed engineering verification from 64 × 64 × 64 through 256 × 256 × 256 resolution and passes the available automated tests with a CUDA backend. A deterministic 32-case development run verified the matched iterative-policy implementation and exact repeatability of its serialized case metrics. A subsequent 300-case validation-stage pilot used a compact multilayer perceptron with scalar metrics and centroid-based geometry features. A one-seed development run then tested a matched 93,476-parameter three-dimensional image-plus-scalar policy on 24 training and 60 validation cases. The endpoint-only and trajectory-supervised acceptable-plan rates were 0.467 and 0.583, respectively; this validation-stage result was used only to verify the image path and does not enter the planned hypothesis test. The prostate generator produced 300 valid seeded anatomies. At 64 × 64 × 64 resolution with 12 × 12 fluence maps, an independent reference optimizer reached the provisional constraints in four of four sampled hard cases. One TCIA subject was imported with all five required clinical contours. The reference optimizer did not meet the synthetic rules with 12 × 12 fluence maps but met all rules with 24 × 24 and 32 × 32 fluence maps. Development and validation measurements are excluded from the planned hypothesis test. Formal computational results will be regenerated from the frozen version and reported in Section 3.
 
 ## 2.N. Scope and ethics
 
@@ -242,6 +248,8 @@ Source code, frozen configurations, split manifests, dataset hashes, and analysi
 7. Moore KL, Brame RS, Low DA, Mutic S. Experience-based quality control of clinical intensity-modulated radiotherapy planning. Int J Radiat Oncol Biol Phys. 2011;81(2):545–551. doi:10.1016/j.ijrobp.2010.11.030.
 
 8. Good D, Lo J, Lee WR, Wu QJ, Yin FF, Das SK. A knowledge-based approach to improving and homogenizing intensity modulated radiation therapy planning quality among treatment centers: an example application to prostate cancer planning. Int J Radiat Oncol Biol Phys. 2013;87(1):176–181. doi:10.1016/j.ijrobp.2013.03.015.
+
+9. Prostate Anatomical Edge Cases. The Cancer Imaging Archive. Published 2023. doi:10.7937/QSTF-ST65.
 
 # Tables
 

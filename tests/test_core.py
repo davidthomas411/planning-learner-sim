@@ -1,5 +1,7 @@
 import numpy as np
 
+from dosim_sim.clinical3d import _pad_to_physical_cube
+
 from dosim_sim import (
     PlanningPriorities,
     SimulationConfig,
@@ -187,6 +189,17 @@ def test_prostate_phantom_has_named_pelvic_structures() -> None:
     assert rectum_center[1] < target_center[1]
     assert np.any(case.oars[2][: case.axis.size // 2])
     assert np.any(case.oars[2][case.axis.size // 2 :])
+
+
+def test_clinical_arrays_are_padded_to_a_physical_cube() -> None:
+    array = np.ones((5, 10, 20), dtype=bool)
+    padded = _pad_to_physical_cube([array], (4.0, 2.0, 1.0))[0]
+    assert padded.shape == (5, 10, 20)
+
+    narrow = np.ones((5, 5, 5), dtype=bool)
+    padded_narrow = _pad_to_physical_cube([narrow], (4.0, 2.0, 1.0))[0]
+    assert padded_narrow.shape == (5, 10, 20)
+    assert padded_narrow[:, 2:7, 7:12].all()
 
 
 def test_delivery_complexity_modes_have_expected_angular_sampling() -> None:

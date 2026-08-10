@@ -18,6 +18,7 @@ from .optimizer3d import (
     optimize_fluence_3d,
 )
 from .volume3d import SyntheticCase3D, generate_case_3d, generate_prostate_case_3d
+from .clinical3d import load_tcia_prostate_case
 from .planning3d import (
     HighLevelSearchConfig3D,
     PlanningStep3D,
@@ -78,6 +79,7 @@ __all__ = [
     "generate_case",
     "generate_case_3d",
     "generate_prostate_case_3d",
+    "load_tcia_prostate_case",
     "delivery_mode_3d",
     "standard_delivery_modes_3d",
     "optimize_beamlets",
