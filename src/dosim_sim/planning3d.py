@@ -346,13 +346,25 @@ def run_high_level_search_3d(
 
     frontier = [(initial, score, initial_steps)]
     best_score, best_steps = score, initial_steps
-    visited = {(initial.active_beams, priorities.target, priorities.hotspot, priorities.oars)}
+    visited = {(
+        initial.active_beams,
+        priorities.target,
+        priorities.hotspot,
+        priorities.oars,
+        priorities.normal_tissue,
+    )}
     stopping_reason = "search_step_limit"
     for step_index in range(1, cfg.max_steps + 1):
         expanded = []
         for current, _, steps in frontier:
             for action, beams, candidate_priorities in _candidate_settings(current, case, cfg):
-                key = (beams, candidate_priorities.target, candidate_priorities.hotspot, candidate_priorities.oars)
+                key = (
+                    beams,
+                    candidate_priorities.target,
+                    candidate_priorities.hotspot,
+                    candidate_priorities.oars,
+                    candidate_priorities.normal_tissue,
+                )
                 if key in visited:
                     continue
                 visited.add(key)

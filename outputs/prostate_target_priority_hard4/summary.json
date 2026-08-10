@@ -1,0 +1,47 @@
+{
+  "status": "manual target-priority calibration on fixed seven-field hard cases",
+  "cases": 4,
+  "grid_size": 64,
+  "fluence_size": 24,
+  "iterations": 300,
+  "clinical_dvh_weight": 5.0,
+  "priorities": {
+    "1.0": {
+      "variation_acceptable_rate": 0.0,
+      "target_acceptable_rate": 0.0,
+      "oars_acceptable_rate": 1.0,
+      "median_d98_gy": 58.322308373451236,
+      "median_maximum_oar_variation_ratio": 0.5029152607399315,
+      "median_paddick_ci_95": 0.8660874564488726,
+      "median_r50": 4.01008813581913
+    },
+    "1.75": {
+      "variation_acceptable_rate": 0.75,
+      "target_acceptable_rate": 0.75,
+      "oars_acceptable_rate": 1.0,
+      "median_d98_gy": 59.024321866035464,
+      "median_maximum_oar_variation_ratio": 0.5185672248411237,
+      "median_paddick_ci_95": 0.8482348342842954,
+      "median_r50": 4.043622232218723
+    },
+    "3.0625": {
+      "variation_acceptable_rate": 1.0,
+      "target_acceptable_rate": 1.0,
+      "oars_acceptable_rate": 1.0,
+      "median_d98_gy": 59.303715634346005,
+      "median_maximum_oar_variation_ratio": 0.5399702816499303,
+      "median_paddick_ci_95": 0.8354916555213119,
+      "median_r50": 4.092538444877626
+    },
+    "5.359375": {
+      "variation_acceptable_rate": 1.0,
+      "target_acceptable_rate": 1.0,
+      "oars_acceptable_rate": 1.0,
+      "median_d98_gy": 59.53507858514786,
+      "median_maximum_oar_variation_ratio": 0.5567724642926455,
+      "median_paddick_ci_95": 0.8256192293277913,
+      "median_r50": 4.1822324731470335
+    }
+  },
+  "elapsed_seconds": 92.80870769999456
+}

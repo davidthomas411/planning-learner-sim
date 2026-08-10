@@ -196,6 +196,14 @@ uv run python scripts/start_prostate_clinical_calibration.py --port 8766 --outpu
 
 Open `http://127.0.0.1:8766/status.html` while the process is active. Process identifiers are stored in `processes.json`. Use `--serve-only` to reopen the status page for a completed run without repeating the computation.
 
+Test the manual target-priority sequence on the four hard validation cases:
+
+```powershell
+uv run python scripts/start_prostate_clinical_calibration.py --pilot manual_trajectory --port 8768 --output-dir outputs/prostate_manual_target_trajectory_hard4
+```
+
+This sequence starts with a fixed seven-field plan. It increases the target priority by a factor of 1.75, reoptimizes the fluence, and reviews the same declared acceptance criteria. It applies a second increase only when required. Beam count, beam angles, and OAR priorities remain fixed in this calibration. The output includes every action, each plan state, a paired dose and DVH review image, and a local progress page.
+
 For a trajectory dataset, activate the objective and the separate protocol-inspired acceptance tier with `--clinical-dvh-weight 5 --prostate-protocol-tier variation_acceptable`. The protocol tier is stored in the attempt manifest and must use the same value during policy training and rollout.
 
 Generate matched parametric prostate demonstrations with a 64-cubed dose grid and 12 x 12 fluence maps:

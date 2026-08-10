@@ -1,0 +1,66 @@
+{
+  "status": "manual target-priority trajectory calibration",
+  "cases": 4,
+  "acceptable_cases": 4,
+  "changes_per_case": [
+    1,
+    2,
+    1,
+    1
+  ],
+  "actions": [
+    [
+      "Increase target priority 1.00 -> 1.75"
+    ],
+    [
+      "Increase target priority 1.00 -> 1.75",
+      "Increase target priority 1.75 -> 3.06"
+    ],
+    [
+      "Increase target priority 1.00 -> 1.75"
+    ],
+    [
+      "Increase target priority 1.00 -> 1.75"
+    ]
+  ],
+  "initial_median_d98_gy": 58.3223083734512,
+  "final_median_d98_gy": 59.1081730127335,
+  "initial_median_maximum_oar_variation_ratio": 0.502915260739932,
+  "final_median_maximum_oar_variation_ratio": 0.499657931749704,
+  "initial_median_paddick_ci_95": 0.866087456448873,
+  "final_median_paddick_ci_95": 0.849870529740029,
+  "initial_median_r50": 4.01008813581913,
+  "final_median_r50": 4.23076837366849,
+  "elapsed_seconds": 55.81781589996535,
+  "beam_angles_degrees": [
+    0.0,
+    51.42857142857143,
+    102.85714285714286,
+    154.28571428571428,
+    205.71428571428572,
+    257.14285714285717,
+    308.57142857142856
+  ],
+  "configuration": {
+    "max_steps": 3,
+    "beam_width": 1,
+    "add_candidates": 0,
+    "remove_candidates": 0,
+    "optimizer_iterations": 300,
+    "priority_factor": 1.75,
+    "priority_ceiling": 5.359375,
+    "priority_floor": 1.0,
+    "d95_min": 0.94,
+    "d02_max": 1.25,
+    "initial_field_count": 7,
+    "normal_tissue_weight": 50.0,
+    "normal_tissue_threshold": 0.5,
+    "integral_dose_weight": 2.0,
+    "clinical_dvh_weight": 5.0,
+    "prostate_protocol_tier": "variation_acceptable",
+    "paddick_ci_95_min": 0.4,
+    "r50_max": 15.0,
+    "minimum_field_count": 7,
+    "shift_candidates": 0
+  }
+}

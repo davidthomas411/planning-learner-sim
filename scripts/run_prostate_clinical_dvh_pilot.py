@@ -45,9 +45,9 @@ async function refresh(){try{const response=await fetch('progress.json?'+Date.no
 const value=Math.max(0,Math.min(100,p.percent_complete||0));document.getElementById('bar').style.width=value+'%';
 document.querySelector('.track').setAttribute('aria-valuenow',value.toFixed(1));document.getElementById('percent').textContent=value.toFixed(1)+'%';
 document.getElementById('phase').textContent=p.status==='complete'?'Complete':p.status==='failed'?'Failed':'Running';
-document.getElementById('count').textContent=p.completed+' / '+p.total+' plans';
+document.getElementById('count').textContent=p.completed+' / '+p.total+' '+(p.unit||'plans');
 document.getElementById('eta').textContent=p.status==='complete'?'Finished in '+format(p.elapsed_seconds):p.estimated_seconds_remaining==null?'Estimating remaining time':format(p.estimated_seconds_remaining)+' remaining';
-document.getElementById('case').textContent=p.last_case?'Last completed: '+p.last_case+', DVH weight '+p.last_weight:'Waiting for first plan.';
+document.getElementById('case').textContent=p.last_case?'Last completed: '+p.last_case+(p.last_weight==null?'':', DVH weight '+p.last_weight)+(p.last_target_priority==null?'':', target priority '+p.last_target_priority):'Waiting for first plan.';
 document.getElementById('updated').textContent='Local update: '+new Date().toLocaleTimeString();
 document.getElementById('bar').className='bar '+(p.status==='complete'?'complete':p.status==='failed'?'failed':'');}catch(error){document.getElementById('updated').textContent='Waiting for progress file...';}}
 function format(seconds){seconds=Math.max(0,Math.round(seconds||0));const minutes=Math.floor(seconds/60);const remainder=seconds%60;return minutes?minutes+'m '+remainder+'s':remainder+'s';}
@@ -66,6 +66,8 @@ def write_progress(
     status: str = "running",
     last_case: str | None = None,
     last_weight: float | None = None,
+    last_target_priority: float | None = None,
+    unit: str = "plans",
 ) -> None:
     elapsed = time.perf_counter() - started
     rate = completed / elapsed if completed > 0 and elapsed > 0 else 0.0
@@ -78,6 +80,8 @@ def write_progress(
         "estimated_seconds_remaining": (total - completed) / rate if rate > 0 else None,
         "last_case": last_case,
         "last_weight": last_weight,
+        "last_target_priority": last_target_priority,
+        "unit": unit,
     }
     temporary = output_dir / "progress.json.tmp"
     temporary.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")

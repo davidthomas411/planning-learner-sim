@@ -22,6 +22,11 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8766)
     parser.add_argument("--serve-only", action="store_true")
     parser.add_argument(
+        "--pilot",
+        choices=("clinical_dvh", "target_priority", "manual_trajectory"),
+        default="clinical_dvh",
+    )
+    parser.add_argument(
         "--output-dir",
         type=Path,
         default=Path("outputs/prostate_clinical_dvh_24x24_12case"),
@@ -54,8 +59,22 @@ def main() -> None:
     )
     run = None
     if not args.serve_only:
-        run = subprocess.Popen(
-            [
+        if args.pilot == "target_priority":
+            run_arguments = [
+                sys.executable,
+                "scripts/run_prostate_target_priority_pilot.py",
+                "--output-dir",
+                str(output_dir),
+            ]
+        elif args.pilot == "manual_trajectory":
+            run_arguments = [
+                sys.executable,
+                "scripts/run_prostate_manual_target_trajectory.py",
+                "--output-dir",
+                str(output_dir),
+            ]
+        else:
+            run_arguments = [
                 sys.executable,
                 "scripts/run_prostate_clinical_dvh_pilot.py",
                 "--cases-per-stratum",
@@ -72,7 +91,9 @@ def main() -> None:
                 "cuda:0",
                 "--output-dir",
                 str(output_dir),
-            ],
+            ]
+        run = subprocess.Popen(
+            run_arguments,
             stdin=subprocess.DEVNULL,
             stdout=run_stdout,
             stderr=run_stderr,
