@@ -14,7 +14,7 @@ def read_csv(path: Path) -> list[dict]:
 
 
 def write_csv(path: Path, rows: list[dict]) -> str:
-    fieldnames = list(rows[0])
+    fieldnames = list(dict.fromkeys(key for row in rows for key in row))
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames, lineterminator="\n")
         writer.writeheader()
@@ -45,6 +45,8 @@ def main() -> None:
 
     rows = [row for directory in args.run_dirs for row in read_csv(directory / "case_metrics.csv")]
     history = [row for directory in args.run_dirs for row in read_csv(directory / "training_history.csv")]
+    diagnostics = [row for directory in args.run_dirs for row in read_csv(directory / "training_diagnostics.csv")]
+    run_summaries = [json.loads((directory / "summary.json").read_text(encoding="utf-8")) for directory in args.run_dirs]
     rows.sort(key=lambda row: (int(row["training_seed"]), row["condition"], row["case_id"]))
     history.sort(key=lambda row: (int(row["seed"]), row["condition"], int(row["update"])))
     seeds = sorted({int(row["training_seed"]) for row in rows})
@@ -55,8 +57,15 @@ def main() -> None:
     keyed = {(int(row["training_seed"]), row["condition"], row["case_id"]): row for row in rows}
     if len(keyed) != len(rows) or set(keyed) != expected_keys:
         raise ValueError("case metrics do not contain one complete endpoint/trajectory grid")
-    if any(len([row for row in history if int(row["seed"]) == seed and row["condition"] == condition]) != 60 for seed in seeds for condition in ("endpoint", "trajectory")):
-        raise ValueError("each seed and condition must contain exactly 60 optimizer updates")
+    update_counts = {
+        len([row for row in history if int(row["seed"]) == seed and row["condition"] == condition])
+        for seed in seeds for condition in ("endpoint", "trajectory")
+    }
+    if len(update_counts) != 1:
+        raise ValueError(f"seed-condition update counts differ: {sorted(update_counts)}")
+    training_cases = {int(summary["training_cases"]) for summary in run_summaries}
+    if len(training_cases) != 1:
+        raise ValueError(f"training-case counts differ: {sorted(training_cases)}")
 
     accept_difference = np.empty((len(seeds), len(cases)), dtype=np.float64)
     violation_difference = np.empty_like(accept_difference)
@@ -104,10 +113,11 @@ def main() -> None:
     history_hash = write_csv(args.output_dir / "training_history.csv", history)
     write_csv(args.output_dir / "per_seed_metrics.csv", per_seed)
     summary = {
-        "status": "completed 300-case, ten-seed variance pilot; not the primary test-set result",
-        "training_cases": 240,
+        "status": "completed matched iterative-policy variance pilot; not the primary test-set result",
+        "training_cases": next(iter(training_cases)),
         "validation_cases": len(cases),
         "training_seeds": len(seeds),
+        "updates_per_seed_condition": next(iter(update_counts)),
         "paired_case_seed_evaluations": int(accept_difference.size),
         "same_case_condition_grid": True,
         "case_metrics_sha256": metrics_hash,
@@ -130,6 +140,12 @@ def main() -> None:
             "neither": int(np.sum((endpoint_accept == 0) & (trajectory_accept == 0))),
         },
         "by_difficulty": by_difficulty,
+        "endpoint_training_action_accuracy_diagnostic_only": float(np.mean([
+            float(row["action_accuracy"]) for row in diagnostics if row["condition"] == "endpoint"
+        ])),
+        "trajectory_training_action_accuracy": float(np.mean([
+            float(row["action_accuracy"]) for row in diagnostics if row["condition"] == "trajectory"
+        ])),
     }
     if "diagnostic_action_accuracy" in history[0]:
         final_history = [row for row in history if int(row["update"]) == 60]
@@ -178,7 +194,7 @@ def main() -> None:
     axes[1, 1].set_xlabel("Trajectory minus endpoint violation")
     axes[1, 1].set_ylabel("Case-seed evaluations")
     axes[1, 1].set_title("Negative values favor trajectory supervision")
-    fig.suptitle("Matched 300-case iterative-policy variance pilot", fontweight="bold")
+    fig.suptitle("Matched iterative-policy variance pilot", fontweight="bold")
     fig.savefig(args.output_dir / "01_variance_pilot_summary.png", dpi=180)
     plt.close(fig)
     print(json.dumps(summary, indent=2))

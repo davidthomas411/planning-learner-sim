@@ -182,8 +182,18 @@ uv run python scripts/build_3d_dataset_pilot.py --split-manifest outputs/splits/
 
 Generate matched parametric prostate demonstrations with a 64-cubed dose grid and 12 x 12 fluence maps:
 
+The command below records the stopped four-to-seven-field calibration. Do not use it to create the next learner dataset. Expert angle refinement, manual normal-tissue priority, and coverage-tier labels must be frozen first.
+
 ```powershell
-uv run python scripts/build_3d_dataset_pilot.py --anatomy prostate --grid-size 64 --fluence-size 12 --iterations 20 --deep-iterations 40 --reference-iterations 240 --retained-cases 300 --output-dir outputs/prostate_300
+uv run python scripts/build_3d_dataset_pilot.py --retained-cases 300 --max-attempts 450 --automatic-train-count 240 --seed-start 106000 --grid-size 64 --anatomy prostate --fluence-size 12 --iterations 20 --deep-iterations 30 --reference-iterations 240 --initial-field-count 4 --minimum-field-count 7 --normal-tissue-weight 50 --normal-tissue-threshold 0.5 --integral-dose-weight 2 --d95-min 0.94 --d02-max 1.22 --paddick-ci-95-min 0.40 --r50-max 15 --max-steps 8 --beam-width 1 --deep-max-steps 10 --deep-beam-width 1 --device cuda:0 --output-dir outputs/prostate_manual_final7_300_v2
+```
+
+The generated `progress.json` file reports retained cases, attempts, percent complete, elapsed time, and estimated remaining time. The first 240 retained records receive the `train` split. The last 60 receive the `validation` split.
+
+```powershell
+uv run python scripts/build_3d_dataset_pilot.py --anatomy prostate --split-manifest outputs/splits/case_split_manifest.csv --split train --start-ordinal 0 --max-attempts 320 --retained-cases 240 --grid-size 64 --fluence-size 12 --iterations 20 --deep-iterations 40 --reference-iterations 240 --output-dir outputs/prostate_300_train
+uv run python scripts/build_3d_dataset_pilot.py --anatomy prostate --split-manifest outputs/splits/case_split_manifest.csv --split validation --start-ordinal 0 --max-attempts 100 --retained-cases 60 --grid-size 64 --fluence-size 12 --iterations 20 --deep-iterations 40 --reference-iterations 240 --output-dir outputs/prostate_300_validation
+uv run python scripts/merge_3d_dataset_shards.py outputs/prostate_300_train outputs/prostate_300_validation --expected-train 240 --expected-validation 60 --output-dir outputs/prostate_300_merged
 ```
 
 Download one public TCIA subject and render the imported contours:
@@ -194,6 +204,17 @@ uv run --extra clinical python scripts/render_tcia_prostate_case.py data/tcia/Pr
 ```
 
 The TCIA contour-only stress test uses at least 24 x 24 fluence maps. Raw DICOM data under `data/tcia` is excluded from Git.
+
+The completed five-seed development run used 24 training cases and 60 validation cases. Run the combined analysis and the action-sequence audit with:
+
+```powershell
+uv run python scripts/analyze_3d_iterative_policy_pilot.py outputs/prostate_volume_policy_pilot_seed0 outputs/prostate_volume_policy_seeds1_4 --output-dir outputs/prostate_volume_policy_seeds0_4_analysis
+uv run python scripts/analyze_prostate_action_failures.py outputs/prostate_volume_policy_seeds1_4/case_metrics.csv --output-dir outputs/prostate_volume_policy_seeds0_4_analysis
+```
+
+The trajectory condition improved the hard stratum but reduced moderate-case acceptability in the 24-case training pilot. A later one-seed run used all 240 training cases. It increased validation acceptability from 76.7% to 83.3% and removed the moderate-case failure loop in that seed. Four additional full-case seeds are required before progression. The 10,000-case experiment is not authorized by one seed.
+
+During training, `progress.json` and `progress.log` report the current phase, completed work, elapsed time, and estimated remaining time. The `review_plans/` directory contains paired easy, moderate, and hard plan images and JSON audit records. Each record shows dose metrics, active beam angles, priorities, and every manual-level action.
 
 ## How methods and results will be shown
 

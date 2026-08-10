@@ -14,7 +14,7 @@ from dosim_sim.dataset3d import ACTION_NAMES
 
 
 class MatchedPilotNet(nn.Module):
-    def __init__(self, feature_count: int, hidden: int = 128) -> None:
+    def __init__(self, feature_count: int, setting_count: int = 17, hidden: int = 128) -> None:
         super().__init__()
         self.trunk = nn.Sequential(
             nn.Linear(feature_count, hidden),
@@ -22,7 +22,7 @@ class MatchedPilotNet(nn.Module):
             nn.Linear(hidden, hidden),
             nn.ReLU(),
         )
-        self.endpoint_head = nn.Linear(hidden, 17)
+        self.endpoint_head = nn.Linear(hidden, setting_count)
         self.action_head = nn.Linear(hidden, len(ACTION_NAMES))
 
     def forward(self, features: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
@@ -76,7 +76,7 @@ def fit(
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
-    model = MatchedPilotNet(endpoint_x.shape[1]).to(endpoint_x.device)
+    model = MatchedPilotNet(endpoint_x.shape[1], endpoint_y.shape[1]).to(endpoint_x.device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     endpoint_losses: list[float] = []
     action_losses: list[float] = []

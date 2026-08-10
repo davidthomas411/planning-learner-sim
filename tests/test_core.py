@@ -19,6 +19,8 @@ from dosim_sim import (
 )
 from dosim_sim.dose import calculate_dose
 from dosim_sim.dataset import action_record, case_features, plan_state
+from dosim_sim.dataset3d import retention_eligible_3d
+from dosim_sim.delivery3d import prostate_delivery_modes_3d
 from dosim_sim.objective import evaluate_plan
 
 
@@ -27,6 +29,22 @@ def test_case_generation_is_reproducible() -> None:
     second = generate_case(17)
     assert np.array_equal(first.target, second.target)
     assert all(np.array_equal(a, b) for a, b in zip(first.oars, second.oars, strict=True))
+
+
+def test_3d_retention_requires_demonstration_and_reference_acceptance() -> None:
+    assert retention_eligible_3d(True, True)
+    assert not retention_eligible_3d(True, False)
+    assert not retention_eligible_3d(False, True)
+    assert not retention_eligible_3d(False, False)
+
+
+def test_prostate_delivery_modes_have_requested_field_counts() -> None:
+    modes = prostate_delivery_modes_3d()
+    assert [len(mode.angles_degrees) for mode in modes] == [4, 7, 9, 12, 36]
+    assert [mode.arc_like for mode in modes] == [False, False, False, False, True]
+    for mode in modes[1:4]:
+        spacings = np.diff((*mode.angles_degrees, mode.angles_degrees[0] + 360.0))
+        assert np.allclose(spacings, spacings[0])
 
 
 def test_dose_is_linear_and_nonnegative() -> None:

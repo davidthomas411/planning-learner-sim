@@ -88,6 +88,9 @@ class TorchImplicitDoseEngine3D:
         self.target_flat = torch.as_tensor(
             np.flatnonzero(case.target.ravel()).astype(np.int64), device=self.device
         )
+        self.normal_tissue_flat = torch.as_tensor(
+            np.flatnonzero((case.body & ~case.target).ravel()).astype(np.int64), device=self.device
+        )
         self.oar_flat = tuple(
             torch.as_tensor(np.flatnonzero(mask.ravel()).astype(np.int64), device=self.device)
             for mask in case.oars
@@ -113,6 +116,7 @@ class TorchImplicitDoseEngine3D:
         tensors = (
             self.body_flat,
             self.target_flat,
+            self.normal_tissue_flat,
             *self.oar_flat,
             self.u0,
             self.v0,
@@ -201,6 +205,9 @@ def _torch_loss(
     engine: TorchImplicitDoseEngine3D,
     dose: "torch.Tensor",
     priorities: PlanningPriorities,
+    normal_tissue_weight: float = 0.0,
+    normal_tissue_threshold: float = 0.5,
+    integral_dose_weight: float = 0.0,
 ) -> "torch.Tensor":
     case = engine.case
     flat_dose = dose.reshape(-1)
@@ -216,6 +223,16 @@ def _torch_loss(
     ):
         values = flat_dose.index_select(0, indices)
         loss = loss + priority * 5.0 * torch.mean(torch.relu(values - limit).square())
+    if normal_tissue_weight > 0.0 or integral_dose_weight > 0.0:
+        normal_values = flat_dose.index_select(0, engine.normal_tissue_flat)
+        if normal_tissue_weight > 0.0:
+            loss = loss + priorities.normal_tissue * normal_tissue_weight * torch.mean(
+                torch.relu(normal_values - normal_tissue_threshold).square()
+            )
+        if integral_dose_weight > 0.0:
+            loss = loss + priorities.normal_tissue * integral_dose_weight * torch.mean(
+                normal_values.square()
+            )
     return loss
 
 
@@ -227,6 +244,9 @@ def optimize_fluence_3d_torch(
     iterations: int = 60,
     learning_rate: float = 0.08,
     initial_fluence: "torch.Tensor | None" = None,
+    normal_tissue_weight: float = 0.0,
+    normal_tissue_threshold: float = 0.5,
+    integral_dose_weight: float = 0.0,
 ) -> TorchOptimizedPlan3D:
     """GPU-capable inner optimizer for fixed human-selected settings."""
 
@@ -253,7 +273,14 @@ def optimize_fluence_3d_torch(
     for step in range(iterations):
         optimizer.zero_grad(set_to_none=True)
         dose = engine.forward(fluence)
-        loss = _torch_loss(engine, dose, priorities) + 0.0005 * torch.sum(fluence.square())
+        loss = _torch_loss(
+            engine,
+            dose,
+            priorities,
+            normal_tissue_weight,
+            normal_tissue_threshold,
+            integral_dose_weight,
+        ) + 0.0005 * torch.sum(fluence.square())
         if not bool(torch.isfinite(loss)):
             raise FloatingPointError(f"Non-finite 3D optimization loss at iteration {step + 1}")
         loss.backward()
@@ -265,9 +292,18 @@ def optimize_fluence_3d_torch(
             fluence[~active] = 0.0
     with torch.no_grad():
         dose = engine.forward(fluence)
-        final_loss = float(_torch_loss(engine, dose, priorities).item())
+        final_loss = float(
+            _torch_loss(
+                engine,
+                dose,
+                priorities,
+                normal_tissue_weight,
+                normal_tissue_threshold,
+                integral_dose_weight,
+            ).item()
+        )
         dose_numpy = dose.detach().float().cpu().numpy()
-        metrics = evaluate_plan_3d(case, dose_numpy, final_loss)
+        metrics = evaluate_plan_3d(case, dose_numpy, final_loss, field_count=len(active_beams))
     return TorchOptimizedPlan3D(
         active_beams=tuple(sorted(active_beams)),
         priorities=priorities,

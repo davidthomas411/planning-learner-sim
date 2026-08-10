@@ -9,7 +9,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from dosim_sim.dataset3d import action_index_3d, action_name_3d, final_settings_target_3d, state_features_3d
+from dosim_sim.dataset3d import (
+    action_index_3d,
+    action_name_3d,
+    final_settings_target_3d,
+    retention_eligible_3d,
+    state_features_3d,
+)
 from dosim_sim.planning3d import (
     HighLevelSearchConfig3D,
     is_acceptable_3d,
@@ -88,6 +94,33 @@ def save_audit(attempts: list[dict], retained: list[dict], path: Path) -> None:
     plt.close(fig)
 
 
+def write_progress(
+    output_dir: Path,
+    target: int,
+    attempts: int,
+    retained: int,
+    started: float,
+    last_case: str | None = None,
+    status: str = "running",
+) -> None:
+    elapsed = time.perf_counter() - started
+    rate = retained / elapsed if elapsed > 0 else 0.0
+    remaining = max(target - retained, 0)
+    payload = {
+        "status": status,
+        "retained": retained,
+        "target": target,
+        "attempted": attempts,
+        "percent_complete": 100.0 * retained / max(target, 1),
+        "elapsed_seconds": elapsed,
+        "estimated_seconds_remaining": remaining / rate if rate > 0 else None,
+        "last_case": last_case,
+    }
+    temporary = output_dir / "progress.json.tmp"
+    temporary.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    temporary.replace(output_dir / "progress.json")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build matched 3D endpoint and trajectory pilot views")
     parser.add_argument("--retained-cases", type=int, default=40)
@@ -102,8 +135,26 @@ def main() -> None:
     parser.add_argument("--iterations", type=int, default=20)
     parser.add_argument("--deep-iterations", type=int, default=40)
     parser.add_argument("--reference-iterations", type=int, default=240)
+    parser.add_argument("--initial-field-count", type=int, default=4)
+    parser.add_argument("--normal-tissue-weight", type=float, default=0.0)
+    parser.add_argument("--normal-tissue-threshold", type=float, default=0.5)
+    parser.add_argument("--integral-dose-weight", type=float, default=0.0)
+    parser.add_argument("--d95-min", type=float, default=0.85)
+    parser.add_argument("--d02-max", type=float, default=1.25)
+    parser.add_argument("--max-steps", type=int, default=6)
+    parser.add_argument("--beam-width", type=int, default=3)
+    parser.add_argument("--deep-max-steps", type=int, default=10)
+    parser.add_argument("--deep-beam-width", type=int, default=4)
+    parser.add_argument("--paddick-ci-95-min", type=float, default=0.0)
+    parser.add_argument("--r50-max", type=float, default=float("inf"))
+    parser.add_argument("--minimum-field-count", type=int, default=0)
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--output-dir", type=Path, default=Path("outputs/3d_dataset_pilot"))
+    parser.add_argument(
+        "--automatic-train-count",
+        type=int,
+        help="Assign the first retained cases to train and all remaining retained cases to validation",
+    )
     args = parser.parse_args()
     if not torch.cuda.is_available():
         raise RuntimeError("CUDA is not available")
@@ -111,23 +162,42 @@ def main() -> None:
     device = torch.device(args.device)
     torch.cuda.set_device(device)
     shallow_cfg = HighLevelSearchConfig3D(
-        max_steps=6,
-        beam_width=3,
+        max_steps=args.max_steps,
+        beam_width=args.beam_width,
         add_candidates=2,
         remove_candidates=1,
         optimizer_iterations=args.iterations,
+        initial_field_count=args.initial_field_count,
+        normal_tissue_weight=args.normal_tissue_weight,
+        normal_tissue_threshold=args.normal_tissue_threshold,
+        integral_dose_weight=args.integral_dose_weight,
+        d95_min=args.d95_min,
+        d02_max=args.d02_max,
+        paddick_ci_95_min=args.paddick_ci_95_min,
+        r50_max=args.r50_max,
+        minimum_field_count=args.minimum_field_count,
     )
     deep_cfg = HighLevelSearchConfig3D(
-        max_steps=10,
-        beam_width=4,
+        max_steps=args.deep_max_steps,
+        beam_width=args.deep_beam_width,
         add_candidates=3,
         remove_candidates=2,
         optimizer_iterations=args.deep_iterations,
         priority_ceiling=25.0,
+        initial_field_count=args.initial_field_count,
+        normal_tissue_weight=args.normal_tissue_weight,
+        normal_tissue_threshold=args.normal_tissue_threshold,
+        integral_dose_weight=args.integral_dose_weight,
+        d95_min=args.d95_min,
+        d02_max=args.d02_max,
+        paddick_ci_95_min=args.paddick_ci_95_min,
+        r50_max=args.r50_max,
+        minimum_field_count=args.minimum_field_count,
     )
     attempts: list[dict] = []
     retained: list[dict] = []
     started = time.perf_counter()
+    write_progress(args.output_dir, args.retained_cases, 0, 0, started)
     specs = candidate_specs(
         args.max_attempts,
         args.seed_start,
@@ -144,7 +214,7 @@ def main() -> None:
         case = generator(seed, args.grid_size, difficulty=difficulty)
         engine = TorchImplicitDoseEngine3D(case, ANGLES, args.fluence_size, device=device, dtype=torch.float16)
         trajectory = run_high_level_search_3d(case, engine, shallow_cfg)
-        reference = run_reference_optimizer_3d(case, engine, args.reference_iterations)
+        reference = run_reference_optimizer_3d(case, engine, args.reference_iterations, config=deep_cfg)
         search_ok = is_acceptable_3d(trajectory.final.plan.metrics, case, shallow_cfg)
         reference_ok = is_acceptable_3d(reference.metrics, case, shallow_cfg)
         search_tier = "shallow"
@@ -165,9 +235,18 @@ def main() -> None:
             "search_violation": trajectory.final.violation_score,
             "trajectory_length": len(trajectory.steps) - 1,
             "stopping_reason": trajectory.stopping_reason,
+            "initial_field_count": args.initial_field_count,
+            "normal_tissue_weight": args.normal_tissue_weight,
+            "normal_tissue_threshold": args.normal_tissue_threshold,
+            "integral_dose_weight": args.integral_dose_weight,
+            "d95_min": args.d95_min,
+            "d02_max": args.d02_max,
+            "paddick_ci_95_min": args.paddick_ci_95_min,
+            "r50_max": args.r50_max,
+            "minimum_field_count": args.minimum_field_count,
         }
         attempts.append(attempt)
-        if search_ok:
+        if retention_eligible_3d(search_ok, reference_ok):
             action_names = [action_name_3d(step.action) for step in trajectory.steps[1:]]
             transitions = [
                 {
@@ -197,8 +276,30 @@ def main() -> None:
                     "action_names": action_names,
                 }
             )
+        write_progress(
+            args.output_dir,
+            args.retained_cases,
+            len(attempts),
+            len(retained),
+            started,
+            last_case=case.case_id,
+        )
         print(f"attempt={len(attempts)} retained={len(retained)} seed={seed} difficulty={difficulty} search={search_ok} reference={reference_ok}", flush=True)
     elapsed = time.perf_counter() - started
+    if args.automatic_train_count is not None:
+        if not 0 <= args.automatic_train_count <= len(retained):
+            raise ValueError("--automatic-train-count must be between zero and the retained case count")
+        train_ordinal = 0
+        validation_ordinal = 0
+        for index, row in enumerate(retained):
+            if index < args.automatic_train_count:
+                row["split"] = "train"
+                row["split_ordinal"] = train_ordinal
+                train_ordinal += 1
+            else:
+                row["split"] = "validation"
+                row["split_ordinal"] = validation_ordinal
+                validation_ordinal += 1
     endpoint_path = args.output_dir / "endpoint_view.jsonl"
     trajectory_path = args.output_dir / "trajectory_view.jsonl"
     with endpoint_path.open("w", encoding="utf-8") as handle:
@@ -230,8 +331,25 @@ def main() -> None:
         "reference_acceptable_among_retained": float(
             np.mean([bool(row["reference_acceptable"]) for row in retained])
         ) if retained else None,
+        "initial_field_count": args.initial_field_count,
+        "normal_tissue_weight": args.normal_tissue_weight,
+        "normal_tissue_threshold": args.normal_tissue_threshold,
+        "integral_dose_weight": args.integral_dose_weight,
+        "d95_min": args.d95_min,
+        "d02_max": args.d02_max,
+        "paddick_ci_95_min": args.paddick_ci_95_min,
+        "r50_max": args.r50_max,
+        "minimum_field_count": args.minimum_field_count,
     }
     (args.output_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    write_progress(
+        args.output_dir,
+        args.retained_cases,
+        len(attempts),
+        len(retained),
+        started,
+        status="complete" if len(retained) >= args.retained_cases else "attempt_limit",
+    )
     print(json.dumps(summary, indent=2))
 
 

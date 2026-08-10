@@ -9,6 +9,11 @@ from .volume3d import SyntheticCase3D
 
 
 FloatArray = NDArray[np.float32]
+SHIFT_ACTION_NAMES = tuple(
+    f"shift_beam_{beam}_to_{(beam + delta) % 12}"
+    for beam in range(12)
+    for delta in (-1, 1)
+)
 ACTION_NAMES = tuple(
     [f"add_beam_{beam}" for beam in range(12)]
     + [f"remove_beam_{beam}" for beam in range(12)]
@@ -17,8 +22,16 @@ ACTION_NAMES = tuple(
     + [f"increase_oar_{index}_priority" for index in range(3)]
     + [f"decrease_oar_{index}_priority" for index in range(3)]
     + ["stop"]
+    + list(SHIFT_ACTION_NAMES)
+    + ["increase_normal_tissue_priority", "decrease_normal_tissue_priority"]
 )
 ACTION_TO_INDEX = {name: index for index, name in enumerate(ACTION_NAMES)}
+
+
+def retention_eligible_3d(search_acceptable: bool, reference_acceptable: bool) -> bool:
+    """Require both the demonstration and independent feasibility check to pass."""
+
+    return bool(search_acceptable and reference_acceptable)
 
 
 def action_name_3d(action: ManualAction | None) -> str:
@@ -28,6 +41,10 @@ def action_name_3d(action: ManualAction | None) -> str:
         if action.beam_index is None:
             raise ValueError("Beam action lacks beam_index")
         return f"{action.kind}_{action.beam_index}"
+    if action.kind == "shift_beam":
+        if action.beam_index is None or action.new_beam_index is None:
+            raise ValueError("Beam shift lacks old or new beam_index")
+        return f"shift_beam_{action.beam_index}_to_{action.new_beam_index}"
     if action.kind in {"increase_oar_priority", "decrease_oar_priority"}:
         if action.structure_index is None:
             raise ValueError("OAR action lacks structure_index")
@@ -87,6 +104,7 @@ def state_features_3d(
             step.plan.priorities.target / 25.0,
             step.plan.priorities.hotspot / 25.0,
             *oar_priorities,
+            step.plan.priorities.normal_tissue / 25.0,
             step.step / max(max_steps, 1),
             step.violation_score,
         ],
@@ -106,4 +124,6 @@ def final_settings_target_3d(step: PlanningStep3D) -> FloatArray:
     priorities[2 : 2 + len(step.plan.priorities.oars)] = np.asarray(
         step.plan.priorities.oars, dtype=np.float32
     ) / 25.0
-    return np.concatenate([active, priorities])
+    return np.concatenate(
+        [active, priorities, np.asarray([step.plan.priorities.normal_tissue / 25.0], dtype=np.float32)]
+    )

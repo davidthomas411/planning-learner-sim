@@ -1,0 +1,8 @@
+{
+  "cases": 12,
+  "shift_degrees": 10.0,
+  "median_shifts": 2.0,
+  "median_r50_change": 0.27179116108204404,
+  "median_ci95_change": 0.006286577242468561,
+  "median_maximum_oar_ratio_change": -0.026170120519750262
+}

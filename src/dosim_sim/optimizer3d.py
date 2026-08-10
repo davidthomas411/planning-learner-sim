@@ -17,6 +17,11 @@ class PlanMetrics3D:
     target_d95: float
     target_d02: float
     oar_mean: tuple[float, ...]
+    target_v95: float
+    paddick_ci_95: float
+    r50: float
+    body_mean_dose: float
+    field_count: int
 
 
 @dataclass(frozen=True)
@@ -63,13 +68,27 @@ def _loss_and_dose_gradient(
     return loss, gradient
 
 
-def evaluate_plan_3d(case: SyntheticCase3D, dose: FloatArray, loss: float) -> PlanMetrics3D:
+def evaluate_plan_3d(
+    case: SyntheticCase3D,
+    dose: FloatArray,
+    loss: float,
+    field_count: int = 0,
+) -> PlanMetrics3D:
     target_values = dose[case.target]
+    target_volume = float(case.target.sum())
+    prescription = (dose >= 0.95) & case.body
+    covered_target = float((prescription & case.target).sum())
+    prescription_volume = float(prescription.sum())
     return PlanMetrics3D(
         loss=float(loss),
         target_d95=float(np.percentile(target_values, 5)),
         target_d02=float(np.percentile(target_values, 98)),
         oar_mean=tuple(float(np.mean(dose[mask])) for mask in case.oars),
+        target_v95=covered_target / target_volume,
+        paddick_ci_95=covered_target**2 / max(target_volume * prescription_volume, 1.0),
+        r50=float(((dose >= 0.50) & case.body).sum()) / target_volume,
+        body_mean_dose=float(np.mean(dose[case.body])),
+        field_count=field_count,
     )
 
 
@@ -129,6 +148,6 @@ def optimize_fluence_3d(
         priorities=priorities,
         fluence=fluence,
         dose=dose,
-        metrics=evaluate_plan_3d(case, dose, loss),
+        metrics=evaluate_plan_3d(case, dose, loss, field_count=len(active_beams)),
         iterations=completed,
     )

@@ -13,7 +13,9 @@ from .planning3d import (
     PlanningStep3D,
     PlanningTrajectory3D,
     clinical_violation_score_3d,
+    initial_beams_3d,
     is_acceptable_3d,
+    optimizer_objective_kwargs_3d,
 )
 from .torch_dose3d import TorchImplicitDoseEngine3D, optimize_fluence_3d_torch
 from .volume3d import SyntheticCase3D
@@ -31,6 +33,15 @@ def legal_action_mask_3d(
     for beam in range(12):
         mask[ACTION_TO_INDEX[f"add_beam_{beam}"]] = beam in case.available_beams and beam not in active
         mask[ACTION_TO_INDEX[f"remove_beam_{beam}"]] = beam in active and len(active) > 3
+        for delta in (-1, 1):
+            new_beam = (beam + delta) % 12
+            name = f"shift_beam_{beam}_to_{new_beam}"
+            mask[ACTION_TO_INDEX[name]] = (
+                config.shift_candidates > 0
+                and beam in active
+                and new_beam in case.available_beams
+                and new_beam not in active
+            )
     priorities = step.plan.priorities
     mask[ACTION_TO_INDEX["increase_target_priority"]] = priorities.target < config.priority_ceiling
     mask[ACTION_TO_INDEX["decrease_target_priority"]] = priorities.target > config.priority_floor
@@ -40,6 +51,12 @@ def legal_action_mask_3d(
         present = index < len(priorities.oars)
         mask[ACTION_TO_INDEX[f"increase_oar_{index}_priority"]] = present and priorities.oars[index] < config.priority_ceiling
         mask[ACTION_TO_INDEX[f"decrease_oar_{index}_priority"]] = present and priorities.oars[index] > config.priority_floor
+    mask[ACTION_TO_INDEX["increase_normal_tissue_priority"]] = (
+        priorities.normal_tissue < config.priority_ceiling
+    )
+    mask[ACTION_TO_INDEX["decrease_normal_tissue_priority"]] = (
+        priorities.normal_tissue > config.priority_floor
+    )
     # Demonstrations define stop as acceptance of the current plan; accepting
     # a state that violates the visible rules is therefore not a legal action.
     mask[ACTION_TO_INDEX["stop"]] = is_acceptable_3d(step.plan.metrics, case, config)
@@ -65,6 +82,41 @@ def action_settings_3d(
     if name.startswith("remove_beam_"):
         beam = int(name.rsplit("_", 1)[1])
         return ManualAction("remove_beam", f"Remove {beam * 30} degree beam", beam_index=beam), tuple(value for value in active if value != beam), priorities
+    if name.startswith("shift_beam_"):
+        parts = name.split("_")
+        old_beam = int(parts[2])
+        new_beam = int(parts[4])
+        shifted = tuple(sorted(new_beam if beam == old_beam else beam for beam in active))
+        return (
+            ManualAction(
+                "shift_beam",
+                f"Shift {old_beam * 30} degree beam to {new_beam * 30} degrees",
+                beam_index=old_beam,
+                new_beam_index=new_beam,
+            ),
+            shifted,
+            priorities,
+        )
+    if name in {"increase_normal_tissue_priority", "decrease_normal_tissue_priority"}:
+        direction = "increase" if name.startswith("increase") else "decrease"
+        multiplier = factor if direction == "increase" else 1.0 / factor
+        value = float(
+            np.clip(
+                priorities.normal_tissue * multiplier,
+                config.priority_floor,
+                config.priority_ceiling,
+            )
+        )
+        return (
+            ManualAction(
+                name,
+                f"{direction.title()} normal-tissue priority",
+                old_value=priorities.normal_tissue,
+                new_value=value,
+            ),
+            active,
+            replace(priorities, normal_tissue=value),
+        )
     direction = "increase" if name.startswith("increase") else "decrease"
     multiplier = factor if direction == "increase" else 1.0 / factor
     if "target_priority" in name:
@@ -88,11 +140,14 @@ def initial_policy_step_3d(
     engine: TorchImplicitDoseEngine3D,
     config: HighLevelSearchConfig3D,
 ) -> PlanningStep3D:
-    active = tuple(beam for beam in (0, 3, 6, 9) if beam in case.available_beams)
-    if len(active) < 3:
-        active = case.available_beams[:3]
+    active = initial_beams_3d(case, config.initial_field_count)
     plan = optimize_fluence_3d_torch(
-        case, engine, active, PlanningPriorities.for_case(case), config.optimizer_iterations
+        case,
+        engine,
+        active,
+        PlanningPriorities.for_case(case),
+        config.optimizer_iterations,
+        **optimizer_objective_kwargs_3d(config),
     )
     return PlanningStep3D(0, None, plan, clinical_violation_score_3d(plan.metrics, case, config))
 
@@ -127,6 +182,7 @@ def rollout_policy_3d(
             priorities,
             config.optimizer_iterations,
             initial_fluence=current.plan.fluence,
+            **optimizer_objective_kwargs_3d(config),
         )
         next_step = PlanningStep3D(
             step_index,

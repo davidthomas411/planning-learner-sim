@@ -19,6 +19,12 @@ class DeliveryMode3D:
 def delivery_mode_3d(name: str) -> DeliveryMode3D:
     modes = {
         "static_4": DeliveryMode3D("static_4", (0.0, 90.0, 180.0, 270.0)),
+        "static_7": DeliveryMode3D(
+            "static_7", tuple(index * 360.0 / 7.0 for index in range(7))
+        ),
+        "static_9": DeliveryMode3D(
+            "static_9", tuple(index * 40.0 for index in range(9))
+        ),
         "static_12": DeliveryMode3D(
             "static_12", tuple(float(value) for value in range(0, 360, 30))
         ),
@@ -39,4 +45,13 @@ def standard_delivery_modes_3d() -> tuple[DeliveryMode3D, ...]:
     return tuple(
         delivery_mode_3d(name)
         for name in ("static_4", "static_12", "arc_like_180", "arc_like_360")
+    )
+
+
+def prostate_delivery_modes_3d() -> tuple[DeliveryMode3D, ...]:
+    """Field-count sweep from four-field geometry to an arc-like upper bound."""
+
+    return tuple(
+        delivery_mode_3d(name)
+        for name in ("static_4", "static_7", "static_9", "static_12", "arc_like_360")
     )

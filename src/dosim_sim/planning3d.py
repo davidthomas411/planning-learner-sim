@@ -23,6 +23,16 @@ class HighLevelSearchConfig3D:
     priority_floor: float = 0.5
     d95_min: float = 0.85
     d02_max: float = 1.25
+    initial_field_count: int = 4
+    normal_tissue_weight: float = 0.0
+    normal_tissue_threshold: float = 0.5
+    integral_dose_weight: float = 0.0
+    paddick_ci_95_min: float = 0.0
+    r50_max: float = float("inf")
+    minimum_field_count: int = 0
+    # The legacy 30-degree shift is disabled. Prostate angle refinement uses
+    # the separate 10-degree expert-rule pilot until its representation is frozen.
+    shift_candidates: int = 0
 
 
 @dataclass(frozen=True)
@@ -44,6 +54,37 @@ class PlanningTrajectory3D:
         return self.steps[-1]
 
 
+def initial_beams_3d(case: SyntheticCase3D, field_count: int) -> tuple[int, ...]:
+    """Select a stable, near-even subset from the 30-degree beam-angle grid."""
+
+    if field_count < 3:
+        raise ValueError("initial_field_count must be at least 3")
+    available = tuple(sorted(case.available_beams))
+    if field_count >= len(available):
+        return available
+    if field_count == 4:
+        cardinal = tuple(beam for beam in (0, 3, 6, 9) if beam in available)
+        if len(cardinal) == 4:
+            return cardinal
+    selected: list[int] = []
+    for target in np.arange(field_count, dtype=np.float64) * 12.0 / field_count:
+        candidates = [beam for beam in available if beam not in selected]
+        beam = min(
+            candidates,
+            key=lambda value: (min(abs(value - target), 12.0 - abs(value - target)), value),
+        )
+        selected.append(beam)
+    return tuple(sorted(selected))
+
+
+def optimizer_objective_kwargs_3d(config: HighLevelSearchConfig3D) -> dict[str, float]:
+    return {
+        "normal_tissue_weight": config.normal_tissue_weight,
+        "normal_tissue_threshold": config.normal_tissue_threshold,
+        "integral_dose_weight": config.integral_dose_weight,
+    }
+
+
 def is_acceptable_3d(
     metrics: PlanMetrics3D,
     case: SyntheticCase3D,
@@ -54,6 +95,9 @@ def is_acceptable_3d(
         metrics.target_d95 >= cfg.d95_min
         and metrics.target_d02 <= cfg.d02_max
         and all(value <= limit for value, limit in zip(metrics.oar_mean, case.oar_limits, strict=True))
+        and metrics.paddick_ci_95 >= cfg.paddick_ci_95_min
+        and metrics.r50 <= cfg.r50_max
+        and metrics.field_count >= cfg.minimum_field_count
     )
 
 
@@ -69,7 +113,18 @@ def clinical_violation_score_3d(
         max(value / limit - 1.0, 0.0)
         for value, limit in zip(metrics.oar_mean, case.oar_limits, strict=True)
     ]
-    return float(coverage + hotspot + sum(oars))
+    conformity = max(cfg.paddick_ci_95_min - metrics.paddick_ci_95, 0.0) / max(
+        cfg.paddick_ci_95_min, 1e-8
+    )
+    dose_spill = (
+        max(metrics.r50 / cfg.r50_max - 1.0, 0.0)
+        if np.isfinite(cfg.r50_max) and cfg.r50_max > 0.0
+        else 0.0
+    )
+    field_count = max(cfg.minimum_field_count - metrics.field_count, 0) / max(
+        cfg.minimum_field_count, 1
+    )
+    return float(coverage + hotspot + sum(oars) + conformity + dose_spill + field_count)
 
 
 def _centroid_xy(mask: np.ndarray, axis: np.ndarray) -> np.ndarray:
@@ -86,6 +141,38 @@ def _beam_separation_scores(case: SyntheticCase3D, oar_weights: np.ndarray) -> n
         angle = np.deg2rad(angle_degrees)
         lateral_axis = np.array([-np.sin(angle), np.cos(angle)])
         scores[beam] = float(np.sum(np.abs(displacements @ lateral_axis) * normalized_weights))
+    return scores
+
+
+def beam_eye_view_avoidance_scores_3d(
+    case: SyntheticCase3D,
+    angles_degrees: tuple[float, ...],
+    oar_weights: np.ndarray,
+) -> np.ndarray:
+    """Score target-OAR ray separation for each coplanar beam angle."""
+
+    target_indices = np.argwhere(case.target)
+    oar_indices = [np.argwhere(mask) for mask in case.oars]
+    normalized_weights = oar_weights / max(float(oar_weights.sum()), 1e-8)
+    bins = np.linspace(-1.5, 1.5, case.body.shape[0] + 1)
+    scores = np.zeros(len(angles_degrees), dtype=np.float64)
+    for beam, angle_degrees in enumerate(angles_degrees):
+        angle = np.deg2rad(angle_degrees)
+
+        def ray_codes(indices: np.ndarray) -> np.ndarray:
+            x = case.axis[indices[:, 0]]
+            y = case.axis[indices[:, 1]]
+            lateral = -np.sin(angle) * x + np.cos(angle) * y
+            lateral_bin = np.clip(np.digitize(lateral, bins) - 1, 0, len(bins) - 2)
+            return np.unique(lateral_bin * case.body.shape[2] + indices[:, 2])
+
+        target_rays = ray_codes(target_indices)
+        overlaps = [
+            np.intersect1d(target_rays, ray_codes(indices), assume_unique=True).size
+            / max(target_rays.size, 1)
+            for indices in oar_indices
+        ]
+        scores[beam] = 1.0 - float(np.dot(normalized_weights, overlaps))
     return scores
 
 
@@ -126,14 +213,71 @@ def _candidate_settings(
             updated[index] = max(old / factor, config.priority_floor)
             candidates.append((ManualAction("decrease_oar_priority", f"Decrease OAR {index + 1} priority {old:.2f} -> {updated[index]:.2f}", structure_index=index, old_value=old, new_value=updated[index]), active, replace(priorities, oars=tuple(updated))))
 
+    spatial_violation = metrics.paddick_ci_95 < config.paddick_ci_95_min or metrics.r50 > config.r50_max
+    if spatial_violation and priorities.normal_tissue < config.priority_ceiling:
+        new = min(priorities.normal_tissue * factor, config.priority_ceiling)
+        candidates.append(
+            (
+                ManualAction(
+                    "increase_normal_tissue_priority",
+                    f"Increase normal-tissue priority {priorities.normal_tissue:.2f} -> {new:.2f}",
+                    old_value=priorities.normal_tissue,
+                    new_value=new,
+                ),
+                active,
+                replace(priorities, normal_tissue=new),
+            )
+        )
+    if metrics.target_d95 < config.d95_min and priorities.normal_tissue > config.priority_floor:
+        new = max(priorities.normal_tissue / factor, config.priority_floor)
+        candidates.append(
+            (
+                ManualAction(
+                    "decrease_normal_tissue_priority",
+                    f"Decrease normal-tissue priority {priorities.normal_tissue:.2f} -> {new:.2f}",
+                    old_value=priorities.normal_tissue,
+                    new_value=new,
+                ),
+                active,
+                replace(priorities, normal_tissue=new),
+            )
+        )
+
     weights = np.maximum(oar_violation, 0.05) * np.asarray(priorities.oars)
-    separation = _beam_separation_scores(case, weights)
+    separation = _beam_separation_scores(case, weights) + beam_eye_view_avoidance_scores_3d(
+        case, tuple(float(value) for value in range(0, 360, 30)), weights
+    )
     inactive = [beam for beam in case.available_beams if beam not in active]
     for beam in sorted(inactive, key=lambda value: (-separation[value], value))[: config.add_candidates]:
         candidates.append((ManualAction("add_beam", f"Add {beam * 30} degree beam", beam_index=beam), tuple(sorted((*active, beam))), priorities))
     if len(active) > 3:
         for beam in sorted(active, key=lambda value: (separation[value], value))[: config.remove_candidates]:
             candidates.append((ManualAction("remove_beam", f"Remove {beam * 30} degree beam", beam_index=beam), tuple(value for value in active if value != beam), priorities))
+    shifts = []
+    for old_beam in active:
+        for delta in (-1, 1):
+            new_beam = (old_beam + delta) % 12
+            if new_beam not in case.available_beams or new_beam in active:
+                continue
+            improvement = separation[new_beam] - separation[old_beam]
+            if improvement > 1e-8:
+                shifts.append((improvement, old_beam, new_beam))
+    for _, old_beam, new_beam in sorted(
+        shifts, key=lambda value: (-value[0], value[1], value[2])
+    )[: config.shift_candidates]:
+        shifted = tuple(sorted(new_beam if beam == old_beam else beam for beam in active))
+        candidates.append(
+            (
+                ManualAction(
+                    "shift_beam",
+                    f"Shift {old_beam * 30} degree beam to {new_beam * 30} degrees for improved OAR separation",
+                    beam_index=old_beam,
+                    new_beam_index=new_beam,
+                ),
+                shifted,
+                priorities,
+            )
+        )
     return candidates
 
 
@@ -145,11 +289,16 @@ def run_high_level_search_3d(
     """Bounded search over manual beam-angle and named-priority changes."""
 
     cfg = config or HighLevelSearchConfig3D()
-    active = tuple(beam for beam in (0, 3, 6, 9) if beam in case.available_beams)
-    if len(active) < 3:
-        active = case.available_beams[:3]
+    active = initial_beams_3d(case, cfg.initial_field_count)
     priorities = PlanningPriorities.for_case(case)
-    initial = optimize_fluence_3d_torch(case, engine, active, priorities, cfg.optimizer_iterations)
+    initial = optimize_fluence_3d_torch(
+        case,
+        engine,
+        active,
+        priorities,
+        cfg.optimizer_iterations,
+        **optimizer_objective_kwargs_3d(cfg),
+    )
     score = clinical_violation_score_3d(initial.metrics, case, cfg)
     initial_steps = (PlanningStep3D(0, None, initial, score),)
     if is_acceptable_3d(initial.metrics, case, cfg):
@@ -167,7 +316,15 @@ def run_high_level_search_3d(
                 if key in visited:
                     continue
                 visited.add(key)
-                candidate = optimize_fluence_3d_torch(case, engine, beams, candidate_priorities, cfg.optimizer_iterations, initial_fluence=current.fluence)
+                candidate = optimize_fluence_3d_torch(
+                    case,
+                    engine,
+                    beams,
+                    candidate_priorities,
+                    cfg.optimizer_iterations,
+                    initial_fluence=current.fluence,
+                    **optimizer_objective_kwargs_3d(cfg),
+                )
                 violation = clinical_violation_score_3d(candidate.metrics, case, cfg)
                 candidate_steps = (*steps, PlanningStep3D(step_index, action, candidate, violation))
                 if violation < best_score:
@@ -188,6 +345,7 @@ def run_reference_optimizer_3d(
     engine: TorchImplicitDoseEngine3D,
     iterations: int = 400,
     penalty_rounds: int = 8,
+    config: HighLevelSearchConfig3D | None = None,
 ) -> TorchOptimizedPlan3D:
     """Independent adaptive-penalty feasibility reference.
 
@@ -202,7 +360,7 @@ def run_reference_optimizer_3d(
     best: TorchOptimizedPlan3D | None = None
     best_key = (float("inf"), float("inf"))
     iterations_per_round = max(1, iterations // penalty_rounds)
-    cfg = HighLevelSearchConfig3D()
+    cfg = config or HighLevelSearchConfig3D()
     for _ in range(penalty_rounds):
         plan = optimize_fluence_3d_torch(
             case,
@@ -212,6 +370,7 @@ def run_reference_optimizer_3d(
             iterations=iterations_per_round,
             learning_rate=0.05,
             initial_fluence=fluence,
+            **optimizer_objective_kwargs_3d(cfg),
         )
         fluence = plan.fluence
         key = (clinical_violation_score_3d(plan.metrics, case, cfg), plan.metrics.loss)
@@ -225,6 +384,7 @@ def run_reference_optimizer_3d(
             target=min(priorities.target * 2.5, 25.0) if plan.metrics.target_d95 < cfg.d95_min else priorities.target,
             hotspot=min(priorities.hotspot * 2.5, 25.0) if plan.metrics.target_d02 > cfg.d02_max else priorities.hotspot,
             oars=tuple(updated_oars),
+            normal_tissue=priorities.normal_tissue,
         )
     assert best is not None
     return best

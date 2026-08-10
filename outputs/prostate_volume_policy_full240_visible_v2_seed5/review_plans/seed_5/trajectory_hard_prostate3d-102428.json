@@ -1,0 +1,81 @@
+{
+  "case_id": "prostate3d-102428",
+  "difficulty": "hard",
+  "condition": "trajectory",
+  "axial_slice": 26,
+  "acceptable": true,
+  "steps": [
+    {
+      "step": 0,
+      "action": null,
+      "active_beam_indices": [
+        0,
+        3,
+        6,
+        9
+      ],
+      "active_beam_angles_degrees": [
+        0.0,
+        90.0,
+        180.0,
+        270.0
+      ],
+      "priorities": {
+        "target": 1.0,
+        "hotspot": 1.0,
+        "oars": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "metrics": {
+        "target_d95": 1.1389669179916382,
+        "target_d02": 1.570064663887024,
+        "oar_mean": [
+          0.578469455242157,
+          0.5827791690826416,
+          0.5650359988212585
+        ],
+        "violation_score": 1.4475651258506452
+      }
+    },
+    {
+      "step": 1,
+      "action": "Add 210 degree beam",
+      "active_beam_indices": [
+        0,
+        3,
+        6,
+        7,
+        9
+      ],
+      "active_beam_angles_degrees": [
+        0.0,
+        90.0,
+        180.0,
+        210.0,
+        270.0
+      ],
+      "priorities": {
+        "target": 1.0,
+        "hotspot": 1.0,
+        "oars": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "metrics": {
+        "target_d95": 0.9512920379638672,
+        "target_d02": 1.2306774854660034,
+        "oar_mean": [
+          0.45164111256599426,
+          0.4334089159965515,
+          0.3025626242160797
+        ],
+        "violation_score": 0.0
+      }
+    }
+  ]
+}

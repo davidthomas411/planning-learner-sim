@@ -1,0 +1,49 @@
+{
+  "status": "paired field-count engineering pilot; arc-like mode is not delivery-realistic VMAT",
+  "cases": 12,
+  "grid_size": 64,
+  "fluence_size": 12,
+  "iterations": 200,
+  "modes": {
+    "static_4": {
+      "field_count": 4,
+      "median_paddick_ci_95": 0.4232172968323846,
+      "median_r50": 23.815843621399175,
+      "median_target_d95": 0.9827476143836975,
+      "median_maximum_oar_ratio": 1.147997028687421,
+      "synthetic_acceptability_rate": 0.0
+    },
+    "static_7": {
+      "field_count": 7,
+      "median_paddick_ci_95": 0.43359905563313106,
+      "median_r50": 12.172046572317576,
+      "median_target_d95": 0.9931586980819702,
+      "median_maximum_oar_ratio": 0.8128014557501848,
+      "synthetic_acceptability_rate": 0.75
+    },
+    "static_9": {
+      "field_count": 9,
+      "median_paddick_ci_95": 0.41428738003404897,
+      "median_r50": 12.568157181571816,
+      "median_target_d95": 0.9937968254089355,
+      "median_maximum_oar_ratio": 0.8331815547802868,
+      "synthetic_acceptability_rate": 0.75
+    },
+    "static_12": {
+      "field_count": 12,
+      "median_paddick_ci_95": 0.4139464625297081,
+      "median_r50": 12.787889346425931,
+      "median_target_d95": 0.9943375289440155,
+      "median_maximum_oar_ratio": 0.7657205357271082,
+      "synthetic_acceptability_rate": 0.75
+    },
+    "arc_like_360": {
+      "field_count": 36,
+      "median_paddick_ci_95": 0.3949231244494401,
+      "median_r50": 14.085883222468588,
+      "median_target_d95": 0.9953871965408325,
+      "median_maximum_oar_ratio": 0.7360572981483795,
+      "synthetic_acceptability_rate": 0.8333333333333334
+    }
+  }
+}

@@ -204,12 +204,13 @@ def add_table(doc: Document, rows: list[list[str]]) -> None:
     doc.add_paragraph().paragraph_format.space_after = Pt(2)
 
 
-def add_image(doc: Document, image_path: Path) -> None:
+def add_image(doc: Document, image_path: Path, alt_text: str) -> None:
     p = doc.add_paragraph()
     p.paragraph_format.first_line_indent = Inches(0)
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p.paragraph_format.keep_with_next = True
-    p.add_run().add_picture(str(image_path), width=Inches(6.25))
+    shape = p.add_run().add_picture(str(image_path), width=Inches(6.25))
+    shape._inline.docPr.set("descr", alt_text)
 
 
 def style_placeholder(paragraph) -> None:
@@ -297,7 +298,7 @@ def build() -> None:
         if image_match:
             image_path = (SOURCE.parent / image_match.group(2)).resolve()
             if not QA_SIMPLE:
-                add_image(doc, image_path)
+                add_image(doc, image_path, image_match.group(1))
             i += 1
             continue
         if line.startswith("|"):

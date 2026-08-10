@@ -2,7 +2,7 @@
 
 ## Current implementation status (2026-08-10)
 
-The 2D nested planner, high-level search oracle, matched 300-case generic dataset, implicit 3D NumPy/PyTorch backends, matched three-dimensional image-plus-scalar policy, and parametric prostate generator are executable. All 23 tests pass with CUDA-enabled Torch on the local RTX 4060. A one-seed image-policy pilot and an end-to-end prostate dataset smoke test have completed. The four-A100 benchmark has not started. See `CURRENT_RESULTS.md` and `LOCAL_GPU_RESULTS.md` for measured values and the boundary between demonstrated mechanics and untested scientific claims.
+The 2D nested planner, high-level search oracle, matched 300-case generic and prostate datasets, implicit 3D NumPy/PyTorch backends, matched three-dimensional image-plus-scalar policy, parametric prostate generator, and TCIA contour importer are executable. All 31 tests pass with CUDA-enabled Torch on the local RTX 4060. Human review identified poor conformity and an inadequate beam-angle action in the first prostate task. The next task will start from a standard seven-field arrangement and permit anatomy-guided 10-degree beam-angle refinement. Normal-tissue priority is now a manual setting. The primary standard tier requires PTV D95 at least 0.94. A separate compromise tier uses D95 at least 0.90 only after standard-goal failure and will be reported separately. No 300-case generation is active. The previous one-seed 240-case learner result remains a development result from a superseded environment. The four-A100 benchmark has not started. See `CURRENT_RESULTS.md` and `LOCAL_GPU_RESULTS.md` for measured values and the boundary between demonstrated mechanics and untested scientific claims.
 
 ## 1. Decision the simulation must support
 
@@ -63,7 +63,7 @@ Use 12 coplanar candidate angles initially and 16 x 16 fluence pixels per beam f
 
 Use a parametric pelvic body, a PTV-like prostate target, bladder, rectal wall, and separate left and right femoral-head shapes. Treat both femoral heads as one shared OAR priority group in the first experiment. Vary body dimensions, prostate and target dimensions, bladder filling, rectal dimensions, femoral-head position, target–OAR separation, and overlap by seed. Add a superior seminal-vesicle-like target extension and restricted beam availability in hard cases.
 
-Use a 64 x 64 x 64 dose grid, a 32 x 32 x 32 policy image input, and 12 x 12 fluence pixels per beam. Initial local tests showed that 4 x 4 and 8 x 8 fluence maps were too coarse for some prostate targets. A 12 x 12 map made four sampled hard cases reachable by the independent reference optimizer. Keep the generic-shape cohort as a development and distribution-shift condition.
+Use a 64 x 64 x 64 dose grid, a 32 x 32 x 32 policy image input, and 12 x 12 fluence pixels per beam. Start each manual task with four cardinal fields. Require at least seven fields in the accepted final plan. Use the 12-angle, 30-degree candidate grid for the first matched learner experiment. Initial local tests showed that 4 x 4 and 8 x 8 fluence maps were too coarse for some prostate targets. A 12 x 12 map made four sampled hard cases reachable by the independent reference optimizer. Keep the generic-shape cohort as a development and distribution-shift condition.
 
 After the synthetic prostate comparison is stable, import a small external contour cohort from the TCIA Prostate Anatomical Edge Cases collection. Use its planning CT, prostate, bladder, rectum, and bilateral femoral-head contours for an external-anatomy test. Apply a frozen 5-mm prostate margin to form the external PTV-like target. Use at least 24 x 24 fluence maps; the first imported case did not meet the synthetic rules at 12 x 12 but met all rules at 24 x 24. Do not add CT-density dose correction until the contour-only experiment passes. Evaluate MAISI as a later anatomy augmentation source because its published segmentation labels include prostate and bladder but do not provide the complete prostate radiotherapy structure set required here.
 
@@ -327,6 +327,8 @@ These criteria establish a synthetic proof of principle; they do not validate a 
 - use training/validation data only;
 - confirm that both models can overfit 32 cases;
 - choose architecture, optimizer, rollout length, and trajectory-loss weight;
+- train the current image policy on all 240 prostate training cases;
+- test a repeated-action mask or recovery-state training because the small-data model entered a repeated priority-action loop;
 - run a compute audit and freeze the training configuration.
 
 ### Phase 4: main simulation

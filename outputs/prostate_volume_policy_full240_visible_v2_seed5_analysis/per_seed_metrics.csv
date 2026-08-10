@@ -1,0 +1,2 @@
+training_seed,endpoint_acceptable_rate,trajectory_acceptable_rate,acceptable_rate_difference,endpoint_mean_violation,trajectory_mean_violation,violation_difference
+5,0.7666666666666667,0.8333333333333334,0.06666666666666667,0.06251740623365111,0.024307899437911153,-0.038209506795739964

@@ -124,7 +124,7 @@ def train_condition(
     random.seed(seed)
     device = engines[0].device
     endpoint_x, endpoint_y, action_x, action_y = tensors(records, device)
-    model = MatchedPilotNet(endpoint_x.shape[1]).to(device)
+    model = MatchedPilotNet(endpoint_x.shape[1], endpoint_y.shape[1]).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     for _ in range(pretrain_updates):
         optimizer.zero_grad(set_to_none=True)

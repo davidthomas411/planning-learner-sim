@@ -1,0 +1,9 @@
+{
+  "run_dir": "outputs\\prostate_volume_policy_full240_visible_v2_seed5",
+  "seed": 5,
+  "cases": [
+    "easy",
+    "moderate",
+    "hard"
+  ]
+}

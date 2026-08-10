@@ -1,0 +1,59 @@
+{
+  "status": "completed matched iterative-policy variance pilot; not the primary test-set result",
+  "training_cases": 240,
+  "validation_cases": 60,
+  "training_seeds": 1,
+  "updates_per_seed_condition": 15,
+  "paired_case_seed_evaluations": 60,
+  "same_case_condition_grid": true,
+  "case_metrics_sha256": "fde4569e1e91fdf82f5470aad25c31278c0c20eabfb7e6575afc35c11ba489c0",
+  "training_history_sha256": "1de5f952967a85aef6bd99ef7f1f33bf502063d9a925920dc8472921a1ebe6c2",
+  "endpoint_acceptable_rate": 0.7666666666666667,
+  "trajectory_acceptable_rate": 0.8333333333333334,
+  "paired_acceptable_rate_difference": 0.06666666666666667,
+  "paired_acceptable_rate_difference_hierarchical_95ci": [
+    0.016666666666666666,
+    0.13333333333333333
+  ],
+  "endpoint_mean_violation": 0.06251740623365111,
+  "trajectory_mean_violation": 0.024307899437911153,
+  "paired_mean_violation_difference": -0.038209506795739964,
+  "paired_mean_violation_difference_hierarchical_95ci": [
+    -0.06715298125550011,
+    -0.013417954123894944
+  ],
+  "seeds_favoring_trajectory_acceptability": 1,
+  "seeds_tied_on_acceptability": 0,
+  "seeds_favoring_trajectory_violation": 1,
+  "paired_acceptability_outcomes": {
+    "both_acceptable": 46,
+    "trajectory_only": 4,
+    "endpoint_only": 0,
+    "neither": 10
+  },
+  "by_difficulty": {
+    "easy": {
+      "cases": 23,
+      "endpoint_acceptable_rate": 1.0,
+      "trajectory_acceptable_rate": 1.0,
+      "endpoint_mean_violation": 0.0,
+      "trajectory_mean_violation": 0.0
+    },
+    "moderate": {
+      "cases": 22,
+      "endpoint_acceptable_rate": 0.9545454545454546,
+      "trajectory_acceptable_rate": 1.0,
+      "endpoint_mean_violation": 0.0006206936058513544,
+      "trajectory_mean_violation": 0.0
+    },
+    "hard": {
+      "cases": 15,
+      "endpoint_acceptable_rate": 0.13333333333333333,
+      "trajectory_acceptable_rate": 0.3333333333333333,
+      "endpoint_mean_violation": 0.2491592743126891,
+      "trajectory_mean_violation": 0.09723159775164461
+    }
+  },
+  "endpoint_training_action_accuracy_diagnostic_only": 0.004968944005668163,
+  "trajectory_training_action_accuracy": 0.37142857909202576
+}

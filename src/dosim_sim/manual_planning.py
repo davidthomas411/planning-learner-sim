@@ -17,6 +17,7 @@ class ManualAction:
     kind: str
     description: str
     beam_index: int | None = None
+    new_beam_index: int | None = None
     structure_index: int | None = None
     old_value: float | None = None
     new_value: float | None = None

@@ -1,0 +1,256 @@
+{
+  "case_id": "prostate3d-103999",
+  "difficulty": "moderate",
+  "condition": "endpoint",
+  "axial_slice": 25,
+  "acceptable": true,
+  "steps": [
+    {
+      "step": 0,
+      "action": null,
+      "active_beam_indices": [
+        0,
+        3,
+        6,
+        9
+      ],
+      "active_beam_angles_degrees": [
+        0.0,
+        90.0,
+        180.0,
+        270.0
+      ],
+      "priorities": {
+        "target": 1.0,
+        "hotspot": 1.0,
+        "oars": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "metrics": {
+        "target_d95": 1.404045820236206,
+        "target_d02": 1.6294095516204834,
+        "oar_mean": [
+          0.38080549240112305,
+          0.5163614153862,
+          0.5995506644248962
+        ],
+        "violation_score": 1.240460619760707
+      }
+    },
+    {
+      "step": 1,
+      "action": "Add 240 degree beam",
+      "active_beam_indices": [
+        0,
+        3,
+        6,
+        8,
+        9
+      ],
+      "active_beam_angles_degrees": [
+        0.0,
+        90.0,
+        180.0,
+        240.0,
+        270.0
+      ],
+      "priorities": {
+        "target": 1.0,
+        "hotspot": 1.0,
+        "oars": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "metrics": {
+        "target_d95": 1.0058794021606445,
+        "target_d02": 1.2888365983963013,
+        "oar_mean": [
+          0.27023962140083313,
+          0.3759990632534027,
+          0.35727670788764954
+        ],
+        "violation_score": 0.08188312544542198
+      }
+    },
+    {
+      "step": 2,
+      "action": "Remove 270 degree beam",
+      "active_beam_indices": [
+        0,
+        3,
+        6,
+        8
+      ],
+      "active_beam_angles_degrees": [
+        0.0,
+        90.0,
+        180.0,
+        240.0
+      ],
+      "priorities": {
+        "target": 1.0,
+        "hotspot": 1.0,
+        "oars": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "metrics": {
+        "target_d95": 1.0240609645843506,
+        "target_d02": 1.2913051843643188,
+        "oar_mean": [
+          0.277127742767334,
+          0.34478238224983215,
+          0.40639540553092957
+        ],
+        "violation_score": 0.22832475199418906
+      }
+    },
+    {
+      "step": 3,
+      "action": "Increase hot-spot priority",
+      "active_beam_indices": [
+        0,
+        3,
+        6,
+        8
+      ],
+      "active_beam_angles_degrees": [
+        0.0,
+        90.0,
+        180.0,
+        240.0
+      ],
+      "priorities": {
+        "target": 1.0,
+        "hotspot": 1.75,
+        "oars": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "metrics": {
+        "target_d95": 1.0094807147979736,
+        "target_d02": 1.2732133865356445,
+        "oar_mean": [
+          0.27158212661743164,
+          0.3329995274543762,
+          0.357742577791214
+        ],
+        "violation_score": 0.07075476155561562
+      }
+    },
+    {
+      "step": 4,
+      "action": "Increase hot-spot priority",
+      "active_beam_indices": [
+        0,
+        3,
+        6,
+        8
+      ],
+      "active_beam_angles_degrees": [
+        0.0,
+        90.0,
+        180.0,
+        240.0
+      ],
+      "priorities": {
+        "target": 1.0,
+        "hotspot": 3.0625,
+        "oars": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "metrics": {
+        "target_d95": 0.9690728783607483,
+        "target_d02": 1.2655102014541626,
+        "oar_mean": [
+          0.26275938749313354,
+          0.3228863775730133,
+          0.31948623061180115
+        ],
+        "violation_score": 0.012408161163330078
+      }
+    },
+    {
+      "step": 5,
+      "action": "Increase hot-spot priority",
+      "active_beam_indices": [
+        0,
+        3,
+        6,
+        8
+      ],
+      "active_beam_angles_degrees": [
+        0.0,
+        90.0,
+        180.0,
+        240.0
+      ],
+      "priorities": {
+        "target": 1.0,
+        "hotspot": 5.359375,
+        "oars": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "metrics": {
+        "target_d95": 1.0129345655441284,
+        "target_d02": 1.1650502681732178,
+        "oar_mean": [
+          0.26718321442604065,
+          0.3182287812232971,
+          0.34209051728248596
+        ],
+        "violation_score": 0.006148580242605783
+      }
+    },
+    {
+      "step": 6,
+      "action": "Increase hot-spot priority",
+      "active_beam_indices": [
+        0,
+        3,
+        6,
+        8
+      ],
+      "active_beam_angles_degrees": [
+        0.0,
+        90.0,
+        180.0,
+        240.0
+      ],
+      "priorities": {
+        "target": 1.0,
+        "hotspot": 9.37890625,
+        "oars": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "metrics": {
+        "target_d95": 0.9517186880111694,
+        "target_d02": 1.1299262046813965,
+        "oar_mean": [
+          0.2628294825553894,
+          0.31350618600845337,
+          0.2734043002128601
+        ],
+        "violation_score": 0.0
+      }
+    }
+  ]
+}

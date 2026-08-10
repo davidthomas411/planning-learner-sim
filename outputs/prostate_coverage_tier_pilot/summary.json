@@ -1,0 +1,11 @@
+{
+  "cases": 12,
+  "standard_d95": 0.94,
+  "compromise_d95": 0.9,
+  "counts": {
+    "standard": 4,
+    "compromise": 2,
+    "unreached": 6
+  },
+  "interpretation": "The compromise tier is separate from the primary standard-coverage comparison."
+}

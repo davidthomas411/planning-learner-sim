@@ -1,0 +1,29 @@
+{
+  "status": "matched development dataset; not a learner result",
+  "anatomy": "prostate",
+  "attempted": 13,
+  "retained": 12,
+  "elapsed_seconds": 72.17879379994702,
+  "case_ids_identical": true,
+  "endpoint_contains_trajectory_key": false,
+  "feature_count": 61,
+  "final_setting_count": 17,
+  "transition_count": 73,
+  "retained_by_difficulty": {
+    "easy": 5,
+    "moderate": 4,
+    "hard": 3
+  },
+  "split": null,
+  "start_ordinal": null,
+  "reference_acceptable_among_retained": 1.0,
+  "initial_field_count": 4,
+  "normal_tissue_weight": 50.0,
+  "normal_tissue_threshold": 0.5,
+  "integral_dose_weight": 2.0,
+  "d95_min": 0.94,
+  "d02_max": 1.22,
+  "paddick_ci_95_min": 0.4,
+  "r50_max": 15.0,
+  "minimum_field_count": 7
+}

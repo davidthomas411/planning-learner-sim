@@ -8,12 +8,14 @@ from dosim_sim.dose3d import ImplicitDoseEngine3D
 from dosim_sim.objective import PlanningPriorities
 from dosim_sim.torch_dose3d import (
     TorchImplicitDoseEngine3D,
+    _torch_loss,
     optimize_fluence_3d_torch,
 )
 from dosim_sim.volume3d import generate_case_3d
 from dosim_sim.planning3d import (
     HighLevelSearchConfig3D,
     clinical_violation_score_3d,
+    initial_beams_3d,
     is_acceptable_3d,
     run_high_level_search_3d,
 )
@@ -60,6 +62,50 @@ def test_torch_optimizer_keeps_inactive_beams_zero() -> None:
     assert torch.all(plan.fluence[[1, 3]] == 0)
 
 
+def test_seven_field_start_is_near_even_and_uses_manual_angle_grid() -> None:
+    case = generate_case_3d(15, grid_size=24)
+    beams = initial_beams_3d(case, 7)
+    gaps = np.diff((*beams, beams[0] + 12))
+    assert len(beams) == 7
+    assert set(beams).issubset(case.available_beams)
+    assert gaps.min() >= 1
+    assert gaps.max() <= 2
+
+
+def test_normal_tissue_terms_add_to_inner_optimizer_loss() -> None:
+    case = generate_case_3d(16, grid_size=24)
+    engine = TorchImplicitDoseEngine3D(case, (0.0, 90.0), fluence_size=4)
+    dose = torch.full(case.body.shape, 0.8)
+    priorities = PlanningPriorities.for_case(case)
+    base = _torch_loss(engine, dose, priorities)
+    constrained = _torch_loss(
+        engine,
+        dose,
+        priorities,
+        normal_tissue_weight=50.0,
+        normal_tissue_threshold=0.5,
+        integral_dose_weight=2.0,
+    )
+    assert constrained > base
+
+
+def test_spatial_metrics_and_minimum_field_rule_are_reported() -> None:
+    case = generate_case_3d(17, grid_size=24)
+    engine = TorchImplicitDoseEngine3D(case, tuple(float(value) for value in range(0, 360, 30)), fluence_size=4)
+    base_config = HighLevelSearchConfig3D(optimizer_iterations=2)
+    step = initial_policy_step_3d(case, engine, base_config)
+    metrics = step.plan.metrics
+    assert 0.0 <= metrics.target_v95 <= 1.0
+    assert 0.0 <= metrics.paddick_ci_95 <= 1.0
+    assert metrics.r50 >= 0.0
+    assert metrics.field_count == 4
+    required = replace(base_config, minimum_field_count=7)
+    assert not is_acceptable_3d(metrics, case, required)
+    assert clinical_violation_score_3d(metrics, case, required) > clinical_violation_score_3d(
+        metrics, case, base_config
+    )
+
+
 def test_3d_search_records_only_high_level_actions() -> None:
     case = generate_case_3d(81, grid_size=24, difficulty="hard")
     angles = tuple(float(value) for value in range(0, 360, 30))
@@ -69,6 +115,7 @@ def test_3d_search_records_only_high_level_actions() -> None:
     allowed = {
         "add_beam",
         "remove_beam",
+        "shift_beam",
         "increase_target_priority",
         "increase_hotspot_priority",
         "increase_oar_priority",
@@ -98,6 +145,38 @@ def test_policy_mask_and_action_translation_enforce_manual_bounds() -> None:
     assert action is not None and action.kind == "increase_target_priority"
     assert beams == step.plan.active_beams
     assert priorities.target > step.plan.priorities.target
+
+
+def test_policy_can_shift_one_beam_angle_without_changing_field_count() -> None:
+    case = generate_case_3d(94, grid_size=24, difficulty="easy")
+    angles = tuple(float(value) for value in range(0, 360, 30))
+    engine = TorchImplicitDoseEngine3D(case, angles, fluence_size=4)
+    cfg = HighLevelSearchConfig3D(max_steps=2, optimizer_iterations=2, shift_candidates=2)
+    step = initial_policy_step_3d(case, engine, cfg)
+    action_index = ACTION_TO_INDEX["shift_beam_0_to_1"]
+    mask = legal_action_mask_3d(case, step, cfg)
+    assert mask[action_index]
+    action, beams, priorities = action_settings_3d(action_index, step, cfg)
+    assert action is not None and action.kind == "shift_beam"
+    assert action.beam_index == 0 and action.new_beam_index == 1
+    assert len(beams) == len(step.plan.active_beams)
+    assert 0 not in beams and 1 in beams
+    assert priorities == step.plan.priorities
+
+
+def test_policy_can_change_normal_tissue_priority() -> None:
+    case = generate_case_3d(95, grid_size=24, difficulty="moderate")
+    engine = TorchImplicitDoseEngine3D(
+        case, tuple(float(value) for value in range(0, 360, 30)), fluence_size=4
+    )
+    cfg = HighLevelSearchConfig3D(max_steps=2, optimizer_iterations=2)
+    step = initial_policy_step_3d(case, engine, cfg)
+    index = ACTION_TO_INDEX["increase_normal_tissue_priority"]
+    assert legal_action_mask_3d(case, step, cfg)[index]
+    action, beams, priorities = action_settings_3d(index, step, cfg)
+    assert action is not None and action.kind == "increase_normal_tissue_priority"
+    assert beams == step.plan.active_beams
+    assert priorities.normal_tissue > step.plan.priorities.normal_tissue
 
 
 def test_3d_policy_volume_contains_current_clinical_information() -> None:

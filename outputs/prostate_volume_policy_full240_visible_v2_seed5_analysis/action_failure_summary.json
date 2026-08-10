@@ -1,0 +1,27 @@
+{
+  "included_training_seeds": [
+    5
+  ],
+  "moderate_case_seed_evaluations": 22,
+  "moderate_acceptable": 22,
+  "moderate_failed": 0,
+  "moderate_acceptable_rate_by_seed": {
+    "5": 1.0
+  },
+  "failed_at_action_limit": 0,
+  "dominant_failed_sequence": null,
+  "mean_action_occurrences_per_rollout": {
+    "increase_hotspot_priority": {
+      "acceptable": 2.1818181818181817,
+      "failed": 0.0
+    },
+    "add_beam_7": {
+      "acceptable": 1.0,
+      "failed": 0.0
+    },
+    "add_beam_1": {
+      "acceptable": 0.09090909090909091,
+      "failed": 0.0
+    }
+  }
+}

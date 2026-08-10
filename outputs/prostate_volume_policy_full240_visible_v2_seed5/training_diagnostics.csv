@@ -1,0 +1,3 @@
+condition,seed,action_accuracy,action_cross_entropy
+endpoint,5,0.004968944005668163,3.9858367443084717
+trajectory,5,0.37142857909202576,1.9943464994430542

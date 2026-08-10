@@ -17,6 +17,7 @@ class PlanningPriorities:
     target: float = 1.0
     hotspot: float = 1.0
     oars: tuple[float, ...] = (1.0, 1.0)
+    normal_tissue: float = 1.0
 
     @classmethod
     def for_case(cls, case: SyntheticCase) -> "PlanningPriorities":

@@ -1,0 +1,28 @@
+{
+  "status": "paired field-count engineering pilot; arc-like mode is not delivery-realistic VMAT",
+  "cases": 12,
+  "grid_size": 64,
+  "fluence_size": 12,
+  "iterations": 200,
+  "normal_tissue_weight": 50.0,
+  "normal_tissue_threshold": 0.5,
+  "integral_dose_weight": 2.0,
+  "modes": {
+    "static_4": {
+      "field_count": 4,
+      "median_paddick_ci_95": 0.6244272177018309,
+      "median_r50": 18.950984990619137,
+      "median_target_d95": 0.9693759083747864,
+      "median_maximum_oar_ratio": 1.1855263628211676,
+      "synthetic_acceptability_rate": 0.0
+    },
+    "static_7": {
+      "field_count": 7,
+      "median_paddick_ci_95": 0.5721261989953497,
+      "median_r50": 10.113446772205897,
+      "median_target_d95": 0.9839776754379272,
+      "median_maximum_oar_ratio": 0.8475174360415514,
+      "synthetic_acceptability_rate": 0.75
+    }
+  }
+}
