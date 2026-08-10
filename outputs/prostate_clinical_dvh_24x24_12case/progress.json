@@ -1,0 +1,10 @@
+{
+  "status": "complete",
+  "completed": 12,
+  "total": 12,
+  "percent_complete": 100.0,
+  "elapsed_seconds": 67.663287900039,
+  "estimated_seconds_remaining": 0.0,
+  "last_case": "prostate3d-102113",
+  "last_weight": 5.0
+}

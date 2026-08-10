@@ -188,6 +188,14 @@ Calibrate the differentiable DVH objective on paired seven-field plans:
 uv run python scripts/run_prostate_clinical_dvh_pilot.py --cases-per-stratum 4 --grid-size 64 --fluence-size 12 --iterations 200 --weights 0 2 5 10 --device cuda:0 --output-dir outputs/prostate_clinical_dvh_pilot
 ```
 
+The pilot writes `progress.json` after every completed plan and writes a `status.html` page that polls it every two seconds. This polling is local and does not call a model or use tokens. Start the current 12-case, 24 x 24 fluence calibration and its hidden local status server with:
+
+```powershell
+uv run python scripts/start_prostate_clinical_calibration.py --port 8765 --output-dir outputs/prostate_clinical_dvh_24x24_12case
+```
+
+Open `http://127.0.0.1:8765/status.html` while the process is active. Process identifiers are stored in `processes.json`.
+
 For a trajectory dataset, activate the objective and the separate protocol-inspired acceptance tier with `--clinical-dvh-weight 5 --prostate-protocol-tier variation_acceptable`. The protocol tier is stored in the attempt manifest and must use the same value during policy training and rollout.
 
 Generate matched parametric prostate demonstrations with a 64-cubed dose grid and 12 x 12 fluence maps:

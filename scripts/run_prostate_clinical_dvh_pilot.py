@@ -20,6 +20,70 @@ from dosim_sim.torch_dose3d import TorchImplicitDoseEngine3D, optimize_fluence_3
 from dosim_sim.volume3d import generate_prostate_case_3d
 
 
+STATUS_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Prostate DVH calibration status</title>
+<style>
+body{font-family:Arial,sans-serif;max-width:760px;margin:48px auto;padding:0 20px;color:#202124;background:#fff}
+h1{font-size:24px;font-weight:500}.track{height:28px;background:#e8eaed;border-radius:4px;overflow:hidden}
+.bar{height:100%;width:0;background:#1a73e8;transition:width .35s ease}.line{display:flex;justify-content:space-between;margin:10px 0}
+.detail{color:#5f6368}.complete{background:#188038}.failed{background:#d93025}@media(prefers-color-scheme:dark){body{color:#e8eaed;background:#202124}.track{background:#3c4043}.detail{color:#bdc1c6}}
+</style>
+</head>
+<body>
+<h1>Prostate DVH calibration</h1>
+<div class="line"><strong id="phase">Starting</strong><span id="percent">0.0%</span></div>
+<div class="track" role="progressbar" aria-label="Calibration progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="bar" id="bar"></div></div>
+<div class="line detail"><span id="count">0 / 0 plans</span><span id="eta">Estimating remaining time</span></div>
+<p class="detail" id="case">Waiting for first plan.</p>
+<p class="detail" id="updated"></p>
+<script>
+async function refresh(){try{const response=await fetch('progress.json?'+Date.now(),{cache:'no-store'});const p=await response.json();
+const value=Math.max(0,Math.min(100,p.percent_complete||0));document.getElementById('bar').style.width=value+'%';
+document.querySelector('.track').setAttribute('aria-valuenow',value.toFixed(1));document.getElementById('percent').textContent=value.toFixed(1)+'%';
+document.getElementById('phase').textContent=p.status==='complete'?'Complete':p.status==='failed'?'Failed':'Running';
+document.getElementById('count').textContent=p.completed+' / '+p.total+' plans';
+document.getElementById('eta').textContent=p.status==='complete'?'Finished in '+format(p.elapsed_seconds):p.estimated_seconds_remaining==null?'Estimating remaining time':format(p.estimated_seconds_remaining)+' remaining';
+document.getElementById('case').textContent=p.last_case?'Last completed: '+p.last_case+', DVH weight '+p.last_weight:'Waiting for first plan.';
+document.getElementById('updated').textContent='Local update: '+new Date().toLocaleTimeString();
+document.getElementById('bar').className='bar '+(p.status==='complete'?'complete':p.status==='failed'?'failed':'');}catch(error){document.getElementById('updated').textContent='Waiting for progress file...';}}
+function format(seconds){seconds=Math.max(0,Math.round(seconds||0));const minutes=Math.floor(seconds/60);const remainder=seconds%60;return minutes?minutes+'m '+remainder+'s':remainder+'s';}
+refresh();setInterval(refresh,2000);
+</script>
+</body>
+</html>
+"""
+
+
+def write_progress(
+    output_dir: Path,
+    completed: int,
+    total: int,
+    started: float,
+    status: str = "running",
+    last_case: str | None = None,
+    last_weight: float | None = None,
+) -> None:
+    elapsed = time.perf_counter() - started
+    rate = completed / elapsed if completed > 0 and elapsed > 0 else 0.0
+    payload = {
+        "status": status,
+        "completed": completed,
+        "total": total,
+        "percent_complete": 100.0 * completed / max(total, 1),
+        "elapsed_seconds": elapsed,
+        "estimated_seconds_remaining": (total - completed) / rate if rate > 0 else None,
+        "last_case": last_case,
+        "last_weight": last_weight,
+    }
+    temporary = output_dir / "progress.json.tmp"
+    temporary.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    temporary.replace(output_dir / "progress.json")
+
+
 def load_records(path: Path) -> list[dict]:
     with path.open(encoding="utf-8") as handle:
         return [json.loads(line) for line in handle if line.strip()]
@@ -102,6 +166,9 @@ def main() -> None:
     parser.add_argument("--output-dir", type=Path, default=Path("outputs/prostate_clinical_dvh_pilot"))
     args = parser.parse_args()
 
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    (args.output_dir / "status.html").write_text(STATUS_PAGE, encoding="utf-8")
+
     os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
     torch.use_deterministic_algorithms(True)
     device = torch.device(args.device)
@@ -119,6 +186,7 @@ def main() -> None:
     total = len(selected) * len(args.weights)
     completed = 0
     started = time.perf_counter()
+    write_progress(args.output_dir, completed, total, started)
     for record in selected:
         case = generate_prostate_case_3d(int(record["seed"]), args.grid_size, difficulty=record["difficulty"])
         engine = TorchImplicitDoseEngine3D(case, mode.angles_degrees, args.fluence_size, device=device, dtype=torch.float32)
@@ -161,11 +229,18 @@ def main() -> None:
             if case.difficulty == "moderate" and representative_case is None:
                 representative_plans[weight] = plan
             completed += 1
+            write_progress(
+                args.output_dir,
+                completed,
+                total,
+                started,
+                last_case=case.case_id,
+                last_weight=weight,
+            )
             print(f"[{completed:02d}/{total}] {case.case_id} weight={weight:g}", flush=True)
         if case.difficulty == "moderate" and representative_case is None:
             representative_case = case
 
-    args.output_dir.mkdir(parents=True, exist_ok=True)
     with (args.output_dir / "case_metrics.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(rows[0]), lineterminator="\n")
         writer.writeheader()
@@ -199,6 +274,15 @@ def main() -> None:
         "elapsed_seconds": time.perf_counter() - started,
     }
     (args.output_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+    write_progress(
+        args.output_dir,
+        completed,
+        total,
+        started,
+        status="complete",
+        last_case=rows[-1]["case_id"],
+        last_weight=float(rows[-1]["clinical_dvh_weight"]),
+    )
     print(json.dumps(summary, indent=2), flush=True)
 
 
