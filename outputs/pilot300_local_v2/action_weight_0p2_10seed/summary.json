@@ -1,0 +1,60 @@
+{
+  "status": "completed 300-case, ten-seed variance pilot; not the primary test-set result",
+  "training_cases": 240,
+  "validation_cases": 60,
+  "training_seeds": 10,
+  "paired_case_seed_evaluations": 600,
+  "same_case_condition_grid": true,
+  "case_metrics_sha256": "057aa8fc0d23bd70960d07e198e1a5589da44aad7e2eeb52c9bb5cafdc2de5c8",
+  "training_history_sha256": "860f6c910feac8531b1486a3c6796f9b0b37ffb7dd3626cc6e0215487205608f",
+  "endpoint_acceptable_rate": 0.615,
+  "trajectory_acceptable_rate": 0.6883333333333334,
+  "paired_acceptable_rate_difference": 0.07333333333333333,
+  "paired_acceptable_rate_difference_hierarchical_95ci": [
+    0.013333333333333334,
+    0.14
+  ],
+  "endpoint_mean_violation": 0.11146211437155412,
+  "trajectory_mean_violation": 0.05245823278786566,
+  "paired_mean_violation_difference": -0.05900388158368846,
+  "paired_mean_violation_difference_hierarchical_95ci": [
+    -0.09054326891839257,
+    -0.03182733327981923
+  ],
+  "seeds_favoring_trajectory_acceptability": 9,
+  "seeds_tied_on_acceptability": 0,
+  "seeds_favoring_trajectory_violation": 10,
+  "paired_acceptability_outcomes": {
+    "both_acceptable": 340,
+    "trajectory_only": 73,
+    "endpoint_only": 29,
+    "neither": 158
+  },
+  "by_difficulty": {
+    "easy": {
+      "cases": 26,
+      "endpoint_acceptable_rate": 0.9076923076923077,
+      "trajectory_acceptable_rate": 0.9346153846153846,
+      "endpoint_mean_violation": 0.016382702922993955,
+      "trajectory_mean_violation": 0.006896610036603806
+    },
+    "moderate": {
+      "cases": 24,
+      "endpoint_acceptable_rate": 0.5333333333333333,
+      "trajectory_acceptable_rate": 0.6833333333333333,
+      "endpoint_mean_violation": 0.08885964976155387,
+      "trajectory_mean_violation": 0.05064435922412171
+    },
+    "hard": {
+      "cases": 10,
+      "endpoint_acceptable_rate": 0.05,
+      "trajectory_acceptable_rate": 0.06,
+      "endpoint_mean_violation": 0.41291449920181106,
+      "trajectory_mean_violation": 0.17527174849413196
+    }
+  },
+  "endpoint_final_training_action_accuracy": 0.03846153961494565,
+  "trajectory_final_training_action_accuracy": 0.5063545256853104,
+  "endpoint_final_training_action_cross_entropy": 4.710779595375061,
+  "trajectory_final_training_action_cross_entropy": 1.6592026472091674
+}

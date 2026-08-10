@@ -110,10 +110,12 @@ for spec in "0 3 0" "3 3 1" "6 2 2" "8 2 3"; do
   uv run python scripts/train_3d_iterative_policy_pilot.py \
     --dataset-dir outputs/pilot300/merged --train-cases 240 --heldout-cases 60 \
     --seed-start "$1" --seeds "$2" --pretrain-updates 400 --updates 60 \
-    --dtype float32 --deterministic --device "cuda:$3" \
+    --action-weight 0.20 --dtype float32 --deterministic --device "cuda:$3" \
     --output-dir "outputs/pilot300/iterative_policy_seeds_$1" &
 done
 wait
 ```
 
 The initial execution should retain deterministic float32 calculations. Reduced precision may be evaluated later as a separate throughput condition only after its per-case metrics agree within a frozen numerical tolerance.
+
+The value 0.20 is the frozen post-pilot trajectory action coefficient. The value was selected on the validation-stage pilot because 0.02 did not reliably learn the demonstration actions. It must not be changed after test-partition evaluation begins.

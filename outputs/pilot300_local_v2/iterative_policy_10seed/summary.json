@@ -1,0 +1,56 @@
+{
+  "status": "completed 300-case, ten-seed variance pilot; not the primary test-set result",
+  "training_cases": 240,
+  "validation_cases": 60,
+  "training_seeds": 10,
+  "paired_case_seed_evaluations": 600,
+  "same_case_condition_grid": true,
+  "case_metrics_sha256": "9e31790a1a4706bc46aeb4dbda5dbc896f80111a3a76e0e43495ed8c025ce3ce",
+  "training_history_sha256": "8c12acd9925ac69cb62758cf8143784ad3972b08b6d6d40c5330bacce8225f83",
+  "endpoint_acceptable_rate": 0.615,
+  "trajectory_acceptable_rate": 0.605,
+  "paired_acceptable_rate_difference": -0.01,
+  "paired_acceptable_rate_difference_hierarchical_95ci": [
+    -0.07666666666666666,
+    0.058333333333333334
+  ],
+  "endpoint_mean_violation": 0.11146211437155412,
+  "trajectory_mean_violation": 0.09826587754736398,
+  "paired_mean_violation_difference": -0.013196236824190142,
+  "paired_mean_violation_difference_hierarchical_95ci": [
+    -0.04543720751644226,
+    0.017268910882685694
+  ],
+  "seeds_favoring_trajectory_acceptability": 5,
+  "seeds_tied_on_acceptability": 0,
+  "seeds_favoring_trajectory_violation": 6,
+  "paired_acceptability_outcomes": {
+    "both_acceptable": 319,
+    "trajectory_only": 44,
+    "endpoint_only": 50,
+    "neither": 187
+  },
+  "by_difficulty": {
+    "easy": {
+      "cases": 26,
+      "endpoint_acceptable_rate": 0.9076923076923077,
+      "trajectory_acceptable_rate": 0.9192307692307692,
+      "endpoint_mean_violation": 0.016382702922993955,
+      "trajectory_mean_violation": 0.008689595186140351
+    },
+    "moderate": {
+      "cases": 24,
+      "endpoint_acceptable_rate": 0.5333333333333333,
+      "trajectory_acceptable_rate": 0.5083333333333333,
+      "endpoint_mean_violation": 0.08885964976155387,
+      "trajectory_mean_violation": 0.08018095820813041
+    },
+    "hard": {
+      "cases": 10,
+      "endpoint_acceptable_rate": 0.05,
+      "trajectory_acceptable_rate": 0.02,
+      "endpoint_mean_violation": 0.41291449920181106,
+      "trajectory_mean_violation": 0.3745680181007059
+    }
+  }
+}

@@ -150,6 +150,8 @@ uv run python scripts/train_3d_iterative_policy_pilot.py --dataset-dir outputs/3
 
 Both arms use the same iterative network, terminal simulator reward, legal-action mask, rollout limit, and optimizer-update count. The endpoint-only arm receives no intermediate demonstration action. The trajectory arm receives the same terminal supervision plus categorical supervision on the recorded high-level actions.
 
+The completed 300-case variance pilot uses `--action-weight 0.20`. The earlier value of 0.02 did not reliably learn the 35-class action labels. The value 0.20 is frozen before any test-partition run.
+
 ## Compare angular delivery complexity
 
 ```powershell

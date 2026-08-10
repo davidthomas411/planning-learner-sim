@@ -113,7 +113,7 @@ This result demonstrates a matched, reproducible comparison path and supports pr
 
 ## Current decision
 
-Environment, demonstration, shared rollout, action-mask parity, and the primary iterative comparator have passed their current engineering checks. The 300-case dataset-generation stage is complete, but the matched learner variance analysis has not yet been run on it. The multi-day 10,000-case study should not begin before that learner pilot. The next compute milestone is the direct four-A100 correctness and throughput run described in `GPU_SERVER.md`, followed by matched training on the frozen 240/60 dataset.
+Environment, demonstration, shared rollout, action-mask parity, and the primary iterative comparator have passed their current engineering checks. The 300-case dataset and ten-seed variance pilot are complete. The calibrated trajectory condition improved validation acceptability and violation score, but hard-case acceptability remained 6%. The 10,000-case experiment should not begin until the state encoder and hard-case performance are reviewed. The present model is a compact scalar/centroid multilayer perceptron, not the three-dimensional convolutional encoder specified for the main study.
 
 ## Local 300-case train/validation dataset
 
@@ -131,6 +131,24 @@ The retained training partition contains 110 easy, 101 moderate, and 29 hard cas
 The canonical merged endpoint SHA-256 digest is `298e025e7c574d6d251647033b2cdc7de0dc03dc2c78abcd114c216c398f82dc`; the trajectory digest is `2f5172f6dfc79e88157119c762428a65a7ef817bcc60021ab2c7f97dd3f25c64`; and the complete attempt-manifest digest is `2ef0608fb190658c2cadf45d49e589114d384b1eff944157dd98079423d7d127`.
 
 An initial 4 x 4 fluence attempt retained only 21 of 120 validation cases, all easy, and was rejected before learner training. The corrected 8 x 8 representation restored moderate and hard cases. The remaining hard-case underrepresentation is retained as an observed property of the frozen generator and feasibility rules and must be reported in difficulty-stratified learner results.
+
+## Ten-seed iterative-policy variance pilot
+
+Both conditions used the same 240 training cases, 60 validation cases, 31,156-parameter network, terminal simulator reward, optimizer-update count, action mask, and ten-action limit. The endpoint condition did not receive intermediate action labels. The trajectory condition received the same terminal supervision plus categorical action supervision. All 600 paired case-seed evaluations were retained.
+
+The initial trajectory coefficient of 0.02 did not reliably teach the action labels. Final action cross-entropy was frequently near the 35-class chance value of 3.56. With this underweighted condition, endpoint acceptability was 61.5% and trajectory acceptability was 60.5%. The paired difference was -1.0 percentage point, with a hierarchical-bootstrap 95% interval from -7.7 to +5.8 percentage points.
+
+The action coefficient was increased to 0.20 as a validation-stage calibration. This change produced 50.6% mean final training action accuracy across the ten trajectory models. Endpoint acceptability remained 61.5%. Trajectory acceptability was 68.8%, for a paired difference of +7.3 percentage points with a hierarchical-bootstrap 95% interval from +1.3 to +14.0 percentage points. Nine of ten seeds favored trajectory supervision. There were 73 trajectory-only acceptable outcomes and 29 endpoint-only acceptable outcomes.
+
+Mean violation score was 0.1115 for endpoint-only training and 0.0525 for trajectory supervision. The paired difference was -0.0590, with a 95% interval from -0.0905 to -0.0318. All ten seeds favored trajectory supervision on mean violation.
+
+| Validation difficulty | Cases | Endpoint acceptable | Trajectory acceptable |
+|---|---:|---:|---:|
+| Easy | 26 | 90.8% | 93.5% |
+| Moderate | 24 | 53.3% | 68.3% |
+| Hard | 10 | 5.0% | 6.0% |
+
+This is a development and hyperparameter-selection result on the validation partition. It is not the prespecified primary test-set result. The action coefficient is now frozen at 0.20 for the next comparison. The low hard-case success rate and the use of a compact scalar/centroid encoder remain progression failures for the full 10,000-case computation.
 
 ## Angular delivery complexity pilot
 

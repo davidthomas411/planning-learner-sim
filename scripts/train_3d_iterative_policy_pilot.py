@@ -161,6 +161,12 @@ def train_condition(
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 5.0)
         optimizer.step()
+        with torch.no_grad():
+            _, diagnostic_action_logits = model(action_x)
+            diagnostic_action_cross_entropy = torch.nn.functional.cross_entropy(
+                diagnostic_action_logits, action_y
+            )
+            diagnostic_action_accuracy = (diagnostic_action_logits.argmax(dim=1) == action_y).float().mean()
         history.append({
             "condition": condition,
             "seed": seed,
@@ -172,6 +178,8 @@ def train_condition(
             "terminal_loss": float(terminal_loss.detach().item()),
             "policy_loss": float(policy_loss.detach().item()),
             "action_loss": float(action_loss.detach().item()),
+            "diagnostic_action_cross_entropy": float(diagnostic_action_cross_entropy.item()),
+            "diagnostic_action_accuracy": float(diagnostic_action_accuracy.item()),
         })
         if update_index % max(updates // 5, 1) == 0:
             print(
@@ -340,6 +348,7 @@ def main() -> None:
     training_history_hash = hashlib.sha256((args.output_dir / "training_history.csv").read_bytes()).hexdigest()
     endpoint_rows = [row for row in results if row["condition"] == "endpoint"]
     trajectory_rows = [row for row in results if row["condition"] == "trajectory"]
+    final_history = [row for row in histories if int(row["update"]) == args.updates]
     summary = {
         "status": "matched iterative-policy development pilot; not a primary result",
         "same_architecture_and_parameter_count": len(parameter_counts) == 1,
@@ -364,6 +373,18 @@ def main() -> None:
         "trajectory_mean_violation": float(np.mean([float(row["violation_score"]) for row in trajectory_rows])),
         "endpoint_mean_actions": float(np.mean([int(row["high_level_actions"]) for row in endpoint_rows])),
         "trajectory_mean_actions": float(np.mean([int(row["high_level_actions"]) for row in trajectory_rows])),
+        "endpoint_final_training_action_accuracy": float(np.mean([
+            row["diagnostic_action_accuracy"] for row in final_history if row["condition"] == "endpoint"
+        ])),
+        "trajectory_final_training_action_accuracy": float(np.mean([
+            row["diagnostic_action_accuracy"] for row in final_history if row["condition"] == "trajectory"
+        ])),
+        "endpoint_final_training_action_cross_entropy": float(np.mean([
+            row["diagnostic_action_cross_entropy"] for row in final_history if row["condition"] == "endpoint"
+        ])),
+        "trajectory_final_training_action_cross_entropy": float(np.mean([
+            row["diagnostic_action_cross_entropy"] for row in final_history if row["condition"] == "trajectory"
+        ])),
     }
     (args.output_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print(json.dumps(summary, indent=2))
