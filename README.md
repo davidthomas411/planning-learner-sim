@@ -218,6 +218,14 @@ uv run python scripts/start_prostate_clinical_calibration.py --pilot manual_traj
 
 This rule does not continue to increase target priority when only the engineering D02 limit fails. It increases hot-spot priority, reoptimizes, and reviews target coverage again.
 
+Test anatomy-guided field shifts after priority calibration:
+
+```powershell
+uv run python scripts/start_prostate_clinical_calibration.py --pilot expert_angle --cases 15 --manual-shifts 1 --shift-degrees 5 --port 8773 --output-dir outputs/prostate_expert_angle_5deg_hard15
+```
+
+The status page displays available summary and plan-review figures below the progress bar. The figures are regenerated after each completed case and refresh in the browser every two seconds. The current beam-eye-view shift rule did not pass the calibration gate and must not be used to generate demonstrations.
+
 For a trajectory dataset, activate the objective and the separate protocol-inspired acceptance tier with `--clinical-dvh-weight 5 --prostate-protocol-tier variation_acceptable`. The protocol tier is stored in the attempt manifest and must use the same value during policy training and rollout.
 
 Generate matched parametric prostate demonstrations with a 64-cubed dose grid and 12 x 12 fluence maps:

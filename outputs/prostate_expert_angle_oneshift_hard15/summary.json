@@ -1,0 +1,13 @@
+{
+  "cases": 15,
+  "shift_degrees": 10.0,
+  "initial_acceptable": 15,
+  "final_acceptable": 12,
+  "median_action_count": 1.0,
+  "median_d98_change_gy": -0.06322517395019389,
+  "median_d02_change_gy": 0.39441347122192383,
+  "median_oar_per_protocol_ratio_change": 0.04266211604095571,
+  "median_ci95_change": 0.0,
+  "median_r50_change": 0.29166666666666696,
+  "elapsed_seconds": 182.80882459995337
+}

@@ -27,8 +27,9 @@ def save_target_response(rows: list[dict], path: Path) -> None:
     for case_id in case_ids:
         selected = sorted((row for row in rows if row["case_id"] == case_id), key=lambda row: row["target_priority"])
         label = case_id.replace("prostate3d-", "")
-        axes[0].plot(priorities, [row["target_d98_gy"] for row in selected], marker="o", label=label)
-        axes[1].plot(priorities, [row["maximum_oar_variation_ratio"] for row in selected], marker="o", label=label)
+        case_priorities = [row["target_priority"] for row in selected]
+        axes[0].plot(case_priorities, [row["target_d98_gy"] for row in selected], marker="o", label=label)
+        axes[1].plot(case_priorities, [row["maximum_oar_variation_ratio"] for row in selected], marker="o", label=label)
     axes[0].axhline(58.8, color="black", linestyle="--", linewidth=1, label="variation goal")
     axes[0].axhline(60.0, color="black", linestyle=":", linewidth=1, label="per-protocol goal")
     axes[0].set_ylabel("PTV D98 (Gy)")
@@ -132,6 +133,8 @@ def main() -> None:
                 "r50": plan.metrics.r50,
             })
             completed += 1
+            save_target_response(rows, args.output_dir / "01_target_priority_response.png")
+            save_pass_summary(rows, args.output_dir / "02_target_priority_pass_rate.png")
             write_progress(
                 args.output_dir,
                 completed,

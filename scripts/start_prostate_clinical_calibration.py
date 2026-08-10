@@ -21,6 +21,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Start local DVH calibration with a token-free status page")
     parser.add_argument("--port", type=int, default=8766)
     parser.add_argument("--cases", type=int, default=4)
+    parser.add_argument("--manual-shifts", type=int, default=2)
+    parser.add_argument("--shift-degrees", type=float, default=10.0)
     parser.add_argument(
         "--action-set",
         choices=("target_only", "target_hotspot"),
@@ -29,7 +31,7 @@ def main() -> None:
     parser.add_argument("--serve-only", action="store_true")
     parser.add_argument(
         "--pilot",
-        choices=("clinical_dvh", "target_priority", "manual_trajectory"),
+        choices=("clinical_dvh", "target_priority", "manual_trajectory", "expert_angle"),
         default="clinical_dvh",
     )
     parser.add_argument(
@@ -82,6 +84,19 @@ def main() -> None:
                 str(args.cases),
                 "--action-set",
                 args.action_set,
+                "--output-dir",
+                str(output_dir),
+            ]
+        elif args.pilot == "expert_angle":
+            run_arguments = [
+                sys.executable,
+                "scripts/run_prostate_expert_angle_clinical_pilot.py",
+                "--cases",
+                str(args.cases),
+                "--manual-shifts",
+                str(args.manual_shifts),
+                "--shift-degrees",
+                str(args.shift_degrees),
                 "--output-dir",
                 str(output_dir),
             ]

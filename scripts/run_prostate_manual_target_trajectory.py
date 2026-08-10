@@ -291,6 +291,15 @@ def main() -> None:
         rows.extend(step_row(case, step) for step in trajectory.steps)
         trajectories.append(trajectory)
         cases.append(case)
+        save_trajectory_plot(rows, args.output_dir / "01_manual_trajectory.png")
+        if any(int(row["step"]) > 0 for row in rows):
+            save_action_map(rows, args.output_dir / "02_action_map.png")
+        longest_so_far = max(range(len(trajectories)), key=lambda value: len(trajectories[value].steps))
+        save_representative_review(
+            cases[longest_so_far],
+            trajectories[longest_so_far],
+            args.output_dir / "03_representative_plan_review.png",
+        )
         write_progress(
             args.output_dir,
             index,

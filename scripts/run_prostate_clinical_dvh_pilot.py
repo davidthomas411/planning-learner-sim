@@ -30,7 +30,7 @@ STATUS_PAGE = """<!doctype html>
 body{font-family:Arial,sans-serif;max-width:760px;margin:48px auto;padding:0 20px;color:#202124;background:#fff}
 h1{font-size:24px;font-weight:500}.track{height:28px;background:#e8eaed;border-radius:4px;overflow:hidden}
 .bar{height:100%;width:0;background:#1a73e8;transition:width .35s ease}.line{display:flex;justify-content:space-between;margin:10px 0}
-.detail{color:#5f6368}.complete{background:#188038}.failed{background:#d93025}@media(prefers-color-scheme:dark){body{color:#e8eaed;background:#202124}.track{background:#3c4043}.detail{color:#bdc1c6}}
+.detail{color:#5f6368}.complete{background:#188038}.failed{background:#d93025}.gallery{display:grid;grid-template-columns:1fr;gap:24px;margin-top:30px}.card{display:none;margin:0}.card img{display:block;width:100%;height:auto;border:1px solid #dadce0;border-radius:4px}.card figcaption{margin-top:8px;color:#5f6368;font-size:14px}@media(prefers-color-scheme:dark){body{color:#e8eaed;background:#202124}.track{background:#3c4043}.detail,.card figcaption{color:#bdc1c6}.card img{border-color:#5f6368}}
 </style>
 </head>
 <body>
@@ -40,7 +40,26 @@ h1{font-size:24px;font-weight:500}.track{height:28px;background:#e8eaed;border-r
 <div class="line detail"><span id="count">0 / 0 plans</span><span id="eta">Estimating remaining time</span></div>
 <p class="detail" id="case">Waiting for first plan.</p>
 <p class="detail" id="updated"></p>
+<h2>Review figures</h2>
+<p class="detail">Figures appear when the run writes them. Displayed files refresh every two seconds.</p>
+<div class="gallery" id="gallery"></div>
 <script>
+const figures=[
+['01_manual_trajectory.png','Planning trajectory'],
+['02_action_map.png','Recorded manual actions'],
+['02_representative_plan_review.png','Representative dose and DVH review'],
+['03_representative_plan_review.png','Representative dose and DVH review'],
+['01_angle_shift_summary.png','Beam-angle comparison'],
+['01_angle_sensitivity.png','Beam-angle sensitivity comparison'],
+['02_representative_plan.png','Representative beam-angle plan'],
+['01_target_priority_response.png','Target-priority response'],
+['02_target_priority_pass_rate.png','Target-priority pass rate'],
+['01_pass_summary.png','Plan acceptance summary'],
+['02_representative_dvhs.png','Representative DVHs'],
+['03_constraint_review.png','Constraint review']];
+const gallery=document.getElementById('gallery');
+for(const [file,label] of figures){const card=document.createElement('figure');card.className='card';const img=document.createElement('img');img.alt=label;const caption=document.createElement('figcaption');caption.textContent=label;card.append(img,caption);gallery.append(card);card.dataset.file=file;card.dataset.label=label;}
+function refreshFigures(){for(const card of gallery.children){const probe=new Image();probe.onload=()=>{const img=card.querySelector('img');img.src=probe.src;card.style.display='block';};probe.onerror=()=>{};probe.src=card.dataset.file+'?'+Date.now();}}
 async function refresh(){try{const response=await fetch('progress.json?'+Date.now(),{cache:'no-store'});const p=await response.json();
 const value=Math.max(0,Math.min(100,p.percent_complete||0));document.getElementById('bar').style.width=value+'%';
 document.querySelector('.track').setAttribute('aria-valuenow',value.toFixed(1));document.getElementById('percent').textContent=value.toFixed(1)+'%';
@@ -51,7 +70,7 @@ document.getElementById('case').textContent=p.last_case?'Last completed: '+p.las
 document.getElementById('updated').textContent='Local update: '+new Date().toLocaleTimeString();
 document.getElementById('bar').className='bar '+(p.status==='complete'?'complete':p.status==='failed'?'failed':'');}catch(error){document.getElementById('updated').textContent='Waiting for progress file...';}}
 function format(seconds){seconds=Math.max(0,Math.round(seconds||0));const minutes=Math.floor(seconds/60);const remainder=seconds%60;return minutes?minutes+'m '+remainder+'s':remainder+'s';}
-refresh();setInterval(refresh,2000);
+refresh();refreshFigures();setInterval(()=>{refresh();refreshFigures();},2000);
 </script>
 </body>
 </html>

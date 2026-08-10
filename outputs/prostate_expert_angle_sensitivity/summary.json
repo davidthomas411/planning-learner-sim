@@ -1,0 +1,47 @@
+[
+  {
+    "label": "10 deg x 2",
+    "run_dir": "outputs\\prostate_expert_angle_clinical_hard15",
+    "cases": 15,
+    "shift_degrees": 10.0,
+    "initial_acceptable": 15,
+    "final_acceptable": 10,
+    "median_action_count": 2.0,
+    "median_d98_change_gy": -0.07048916816711426,
+    "median_d02_change_gy": 0.49080848693847656,
+    "median_oar_per_protocol_ratio_change": 0.017761989342806483,
+    "median_ci95_change": -0.004992654511496553,
+    "median_r50_change": 0.3724696356275299,
+    "elapsed_seconds": 279.32631350005977
+  },
+  {
+    "label": "10 deg x 1",
+    "run_dir": "outputs\\prostate_expert_angle_oneshift_hard15",
+    "cases": 15,
+    "shift_degrees": 10.0,
+    "initial_acceptable": 15,
+    "final_acceptable": 12,
+    "median_action_count": 1.0,
+    "median_d98_change_gy": -0.06322517395019389,
+    "median_d02_change_gy": 0.39441347122192383,
+    "median_oar_per_protocol_ratio_change": 0.04266211604095571,
+    "median_ci95_change": 0.0,
+    "median_r50_change": 0.29166666666666696,
+    "elapsed_seconds": 182.80882459995337
+  },
+  {
+    "label": "5 deg x 1",
+    "run_dir": "outputs\\prostate_expert_angle_5deg_hard15",
+    "cases": 15,
+    "shift_degrees": 5.0,
+    "initial_acceptable": 15,
+    "final_acceptable": 14,
+    "median_action_count": 1.0,
+    "median_d98_change_gy": 0.0031889677047729492,
+    "median_d02_change_gy": 0.7944345474243164,
+    "median_oar_per_protocol_ratio_change": -0.014587892049599205,
+    "median_ci95_change": 0.0029845284066530864,
+    "median_r50_change": 0.19253731343283587,
+    "elapsed_seconds": 188.08984849997796
+  }
+]
