@@ -1,0 +1,18 @@
+{
+  "status": "protocol-inspired DVH objective calibration; not clinical dose validation",
+  "prescription_gy": 60.0,
+  "fractions": 20,
+  "dose_per_fraction_gy": 3.0,
+  "cases": 3,
+  "weights": {
+    "5.0": {
+      "per_protocol_rate": 0.0,
+      "variation_acceptable_rate": 0.6666666666666666,
+      "median_target_d98_gy": 59.28838319778442,
+      "median_paddick_ci_95": 0.8041237113402062,
+      "median_r50": 4.985365853658537
+    }
+  },
+  "selected_weight_for_review": 5.0,
+  "elapsed_seconds": 18.79762079997454
+}

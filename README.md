@@ -180,7 +180,7 @@ uv run python scripts/build_3d_dataset_pilot.py --split-manifest outputs/splits/
 
 ## Run the prostate anatomy path
 
-The clinically recognizable prostate evaluation uses 60 Gy in 20 fractions (3 Gy per fraction). It reports PTV D98, D99, and D02 and the NRG Table 10 rectum, bladder, and femoral-head DVH goals in Gy and percent volume. The femoral heads remain one combined planning-priority group in the parametric phantom; this is an explicit temporary approximation. These goals do not convert the synthetic dose operator into a clinical dose calculation.
+The clinically recognizable prostate evaluation uses 60 Gy in 20 fractions (3 Gy per fraction). It reports PTV D98 and D99 and the NRG Table 10 rectum, bladder, and femoral-head DVH goals in Gy and percent volume. PTV D02 is reported as a separate engineering diagnostic; it is not treated as the protocol D0.03-cc maximum. The femoral heads remain one combined planning-priority group in the parametric phantom; this is an explicit temporary approximation. These goals do not convert the synthetic dose operator into a clinical dose calculation.
 
 Calibrate the differentiable DVH objective on paired seven-field plans:
 

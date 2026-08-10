@@ -127,10 +127,10 @@ def evaluate_prostate_60gy20fx(
         target_d99_gy=d99,
         target_d02_gy=d02,
         # NRG generic photon target criteria: D98 >= 100% and D99 >= 95%.
-        # D0.03 cc cannot be represented on the present dimensionless grid;
-        # D02 remains a visible, conservative engineering hot-spot metric.
-        target_per_protocol=d98 >= PRESCRIPTION_GY and d99 >= 0.95 * PRESCRIPTION_GY and d02 <= 1.07 * PRESCRIPTION_GY,
-        target_variation_acceptable=d98 >= 0.98 * PRESCRIPTION_GY and d99 >= 0.93 * PRESCRIPTION_GY and d02 <= 1.10 * PRESCRIPTION_GY,
+        # D0.03 cc cannot be represented on the present dimensionless grid.
+        # D02 is reported separately and is not called a protocol constraint.
+        target_per_protocol=d98 >= PRESCRIPTION_GY and d99 >= 0.95 * PRESCRIPTION_GY,
+        target_variation_acceptable=d98 >= 0.98 * PRESCRIPTION_GY and d99 >= 0.93 * PRESCRIPTION_GY,
         oar_results=results,
     )
 
@@ -164,10 +164,10 @@ def protocol_summary_rows(evaluation: ProstateProtocolEvaluation) -> list[dict[s
             "metric": "D02 proxy",
             "observed": evaluation.target_d02_gy,
             "unit": "Gy",
-            "per_protocol_goal": "<=64.2",
-            "variation_goal": "<=66.0",
-            "per_protocol": evaluation.target_d02_gy <= 64.2,
-            "variation_acceptable": evaluation.target_d02_gy <= 66.0,
+            "per_protocol_goal": "reported only",
+            "variation_goal": "reported only",
+            "per_protocol": None,
+            "variation_acceptable": None,
         },
     ]
     rows.extend(
@@ -195,13 +195,12 @@ def protocol_violation_score(
     if tier not in {"per_protocol", "variation_acceptable"}:
         raise ValueError("tier must be per_protocol or variation_acceptable")
     if tier == "per_protocol":
-        d98_min, d99_min, d02_max = 60.0, 57.0, 64.2
+        d98_min, d99_min = 60.0, 57.0
     else:
-        d98_min, d99_min, d02_max = 58.8, 55.8, 66.0
+        d98_min, d99_min = 58.8, 55.8
     gaps = [
         max(d98_min - evaluation.target_d98_gy, 0.0) / d98_min,
         max(d99_min - evaluation.target_d99_gy, 0.0) / d99_min,
-        max(evaluation.target_d02_gy - d02_max, 0.0) / d02_max,
     ]
     for item in evaluation.oar_results:
         limit = (
