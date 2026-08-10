@@ -1,0 +1,10 @@
+{
+  "status": "attempt_limit",
+  "retained": 0,
+  "target": 1,
+  "attempted": 3,
+  "percent_complete": 0.0,
+  "elapsed_seconds": 13.46915970009286,
+  "estimated_seconds_remaining": null,
+  "last_case": null
+}

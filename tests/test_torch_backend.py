@@ -11,7 +11,7 @@ from dosim_sim.torch_dose3d import (
     _torch_loss,
     optimize_fluence_3d_torch,
 )
-from dosim_sim.volume3d import generate_case_3d
+from dosim_sim.volume3d import generate_case_3d, generate_prostate_case_3d
 from dosim_sim.planning3d import (
     HighLevelSearchConfig3D,
     clinical_violation_score_3d,
@@ -87,6 +87,37 @@ def test_normal_tissue_terms_add_to_inner_optimizer_loss() -> None:
         integral_dose_weight=2.0,
     )
     assert constrained > base
+
+
+def test_prostate_clinical_dvh_terms_add_to_inner_optimizer_loss() -> None:
+    case = generate_prostate_case_3d(161, grid_size=24, difficulty="moderate")
+    engine = TorchImplicitDoseEngine3D(case, (0.0, 90.0), fluence_size=4)
+    dose = torch.full(case.body.shape, 0.9)
+    priorities = PlanningPriorities.for_case(case)
+    base = _torch_loss(engine, dose, priorities)
+    constrained = _torch_loss(engine, dose, priorities, clinical_dvh_weight=1.0)
+    assert constrained > base
+
+
+def test_prostate_protocol_tier_is_part_of_acceptance_and_violation() -> None:
+    case = generate_prostate_case_3d(162, grid_size=24, difficulty="moderate")
+    engine = TorchImplicitDoseEngine3D(case, (0.0, 90.0, 180.0, 270.0), fluence_size=4)
+    plan = optimize_fluence_3d_torch(
+        case,
+        engine,
+        (0, 1, 2, 3),
+        PlanningPriorities.for_case(case),
+        iterations=3,
+        clinical_dvh_weight=1.0,
+    )
+    base = HighLevelSearchConfig3D(d95_min=0.1, d02_max=10.0)
+    protocol = replace(base, prostate_protocol_tier="per_protocol")
+    assert plan.metrics.protocol_per_protocol is not None
+    assert clinical_violation_score_3d(plan.metrics, case, protocol) >= clinical_violation_score_3d(
+        plan.metrics, case, base
+    )
+    if plan.metrics.protocol_per_protocol is False:
+        assert not is_acceptable_3d(plan.metrics, case, protocol)
 
 
 def test_spatial_metrics_and_minimum_field_rule_are_reported() -> None:

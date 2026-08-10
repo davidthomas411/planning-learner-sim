@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from .objective import PlanningPriorities
+from .prostate_protocol import PROSTATE_60GY_20FX_OAR_GOALS
 from .optimizer3d import PlanMetrics3D, evaluate_plan_3d
 from .volume3d import SyntheticCase3D
 
@@ -208,6 +209,7 @@ def _torch_loss(
     normal_tissue_weight: float = 0.0,
     normal_tissue_threshold: float = 0.5,
     integral_dose_weight: float = 0.0,
+    clinical_dvh_weight: float = 0.0,
 ) -> "torch.Tensor":
     case = engine.case
     flat_dose = dose.reshape(-1)
@@ -223,6 +225,30 @@ def _torch_loss(
     ):
         values = flat_dose.index_select(0, indices)
         loss = loss + priority * 5.0 * torch.mean(torch.relu(values - limit).square())
+    if clinical_dvh_weight > 0.0 and case.anatomy in {"prostate", "tcia_prostate"}:
+        for minimum, cold_fraction, coefficient in ((1.0, 0.02, 20.0), (0.95, 0.01, 10.0)):
+            cold_count = int(np.floor(cold_fraction * target_values.numel()))
+            constrained_count = max(1, target_values.numel() - cold_count)
+            constrained = torch.topk(target_values, k=constrained_count, largest=True).values
+            loss = loss + (
+                clinical_dvh_weight
+                * priorities.target
+                * coefficient
+                * torch.mean(torch.relu(minimum - constrained).square())
+            )
+        name_to_index = {name: index for index, name in enumerate(case.structure_names)}
+        for goal in PROSTATE_60GY_20FX_OAR_GOALS:
+            structure_index = name_to_index[goal.structure]
+            values = flat_dose.index_select(0, engine.oar_flat[structure_index])
+            allowed = int(np.floor(goal.per_protocol_volume_percent * values.numel() / 100.0))
+            constrained_count = max(1, values.numel() - allowed)
+            constrained = torch.topk(values, k=constrained_count, largest=False).values
+            loss = loss + (
+                clinical_dvh_weight
+                * priorities.oars[structure_index]
+                * 2.0
+                * torch.mean(torch.relu(constrained - goal.relative_dose).square())
+            )
     if normal_tissue_weight > 0.0 or integral_dose_weight > 0.0:
         normal_values = flat_dose.index_select(0, engine.normal_tissue_flat)
         if normal_tissue_weight > 0.0:
@@ -247,6 +273,7 @@ def optimize_fluence_3d_torch(
     normal_tissue_weight: float = 0.0,
     normal_tissue_threshold: float = 0.5,
     integral_dose_weight: float = 0.0,
+    clinical_dvh_weight: float = 0.0,
 ) -> TorchOptimizedPlan3D:
     """GPU-capable inner optimizer for fixed human-selected settings."""
 
@@ -280,6 +307,7 @@ def optimize_fluence_3d_torch(
             normal_tissue_weight,
             normal_tissue_threshold,
             integral_dose_weight,
+            clinical_dvh_weight,
         ) + 0.0005 * torch.sum(fluence.square())
         if not bool(torch.isfinite(loss)):
             raise FloatingPointError(f"Non-finite 3D optimization loss at iteration {step + 1}")
@@ -300,6 +328,7 @@ def optimize_fluence_3d_torch(
                 normal_tissue_weight,
                 normal_tissue_threshold,
                 integral_dose_weight,
+                clinical_dvh_weight,
             ).item()
         )
         dose_numpy = dose.detach().float().cpu().numpy()

@@ -1,0 +1,39 @@
+{
+  "status": "protocol-inspired DVH objective calibration; not clinical dose validation",
+  "prescription_gy": 60.0,
+  "fractions": 20,
+  "dose_per_fraction_gy": 3.0,
+  "cases": 3,
+  "weights": {
+    "2.0": {
+      "per_protocol_rate": 0.0,
+      "variation_acceptable_rate": 0.3333333333333333,
+      "median_target_d98_gy": 58.30842561721801,
+      "median_paddick_ci_95": 0.5742296918767507,
+      "median_r50": 11.239024390243902
+    },
+    "5.0": {
+      "per_protocol_rate": 0.0,
+      "variation_acceptable_rate": 0.3333333333333333,
+      "median_target_d98_gy": 58.435168933868404,
+      "median_paddick_ci_95": 0.5758426966292135,
+      "median_r50": 11.229268292682926
+    },
+    "10.0": {
+      "per_protocol_rate": 0.0,
+      "variation_acceptable_rate": 0.3333333333333333,
+      "median_target_d98_gy": 58.45167074203491,
+      "median_paddick_ci_95": 0.5631868131868132,
+      "median_r50": 11.273170731707317
+    },
+    "20.0": {
+      "per_protocol_rate": 0.0,
+      "variation_acceptable_rate": 0.3333333333333333,
+      "median_target_d98_gy": 58.70452151298523,
+      "median_paddick_ci_95": 0.5338541666666666,
+      "median_r50": 11.492682926829268
+    }
+  },
+  "selected_weight_for_review": 2.0,
+  "elapsed_seconds": 37.16520489996765
+}

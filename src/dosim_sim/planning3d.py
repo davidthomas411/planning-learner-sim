@@ -27,6 +27,8 @@ class HighLevelSearchConfig3D:
     normal_tissue_weight: float = 0.0
     normal_tissue_threshold: float = 0.5
     integral_dose_weight: float = 0.0
+    clinical_dvh_weight: float = 0.0
+    prostate_protocol_tier: str = "off"
     paddick_ci_95_min: float = 0.0
     r50_max: float = float("inf")
     minimum_field_count: int = 0
@@ -82,6 +84,7 @@ def optimizer_objective_kwargs_3d(config: HighLevelSearchConfig3D) -> dict[str, 
         "normal_tissue_weight": config.normal_tissue_weight,
         "normal_tissue_threshold": config.normal_tissue_threshold,
         "integral_dose_weight": config.integral_dose_weight,
+        "clinical_dvh_weight": config.clinical_dvh_weight,
     }
 
 
@@ -91,13 +94,28 @@ def is_acceptable_3d(
     config: HighLevelSearchConfig3D | None = None,
 ) -> bool:
     cfg = config or HighLevelSearchConfig3D()
+    protocol_ok = True
+    mean_oars_ok = all(
+        value <= limit for value, limit in zip(metrics.oar_mean, case.oar_limits, strict=True)
+    )
+    if cfg.prostate_protocol_tier != "off" and case.anatomy in {"prostate", "tcia_prostate"}:
+        if cfg.prostate_protocol_tier == "per_protocol":
+            protocol_ok = metrics.protocol_per_protocol is True
+        elif cfg.prostate_protocol_tier == "variation_acceptable":
+            protocol_ok = metrics.protocol_variation_acceptable is True
+        else:
+            raise ValueError("prostate_protocol_tier must be off, per_protocol, or variation_acceptable")
+        # The protocol DVH tier replaces the older synthetic mean-dose OAR
+        # gate. Retaining both would impose an undocumented extra constraint.
+        mean_oars_ok = True
     return (
         metrics.target_d95 >= cfg.d95_min
         and metrics.target_d02 <= cfg.d02_max
-        and all(value <= limit for value, limit in zip(metrics.oar_mean, case.oar_limits, strict=True))
+        and mean_oars_ok
         and metrics.paddick_ci_95 >= cfg.paddick_ci_95_min
         and metrics.r50 <= cfg.r50_max
         and metrics.field_count >= cfg.minimum_field_count
+        and protocol_ok
     )
 
 
@@ -109,10 +127,14 @@ def clinical_violation_score_3d(
     cfg = config or HighLevelSearchConfig3D()
     coverage = max(cfg.d95_min - metrics.target_d95, 0.0) / cfg.d95_min
     hotspot = max(metrics.target_d02 - cfg.d02_max, 0.0) / cfg.d02_max
-    oars = [
-        max(value / limit - 1.0, 0.0)
-        for value, limit in zip(metrics.oar_mean, case.oar_limits, strict=True)
-    ]
+    oars = (
+        []
+        if cfg.prostate_protocol_tier != "off" and case.anatomy in {"prostate", "tcia_prostate"}
+        else [
+            max(value / limit - 1.0, 0.0)
+            for value, limit in zip(metrics.oar_mean, case.oar_limits, strict=True)
+        ]
+    )
     conformity = max(cfg.paddick_ci_95_min - metrics.paddick_ci_95, 0.0) / max(
         cfg.paddick_ci_95_min, 1e-8
     )
@@ -124,7 +146,12 @@ def clinical_violation_score_3d(
     field_count = max(cfg.minimum_field_count - metrics.field_count, 0) / max(
         cfg.minimum_field_count, 1
     )
-    return float(coverage + hotspot + sum(oars) + conformity + dose_spill + field_count)
+    protocol = 0.0
+    if cfg.prostate_protocol_tier == "per_protocol" and metrics.protocol_violation_per_protocol is not None:
+        protocol = metrics.protocol_violation_per_protocol
+    elif cfg.prostate_protocol_tier == "variation_acceptable" and metrics.protocol_violation_variation is not None:
+        protocol = metrics.protocol_violation_variation
+    return float(coverage + hotspot + sum(oars) + conformity + dose_spill + field_count + protocol)
 
 
 def _centroid_xy(mask: np.ndarray, axis: np.ndarray) -> np.ndarray:
@@ -187,7 +214,15 @@ def _candidate_settings(
     factor = config.priority_factor
     candidates: list[tuple[ManualAction, tuple[int, ...], PlanningPriorities]] = []
 
-    if metrics.target_d95 < config.d95_min and priorities.target < config.priority_ceiling:
+    protocol_target_failed = (
+        config.prostate_protocol_tier == "per_protocol"
+        and metrics.protocol_target_per_protocol is False
+    ) or (
+        config.prostate_protocol_tier == "variation_acceptable"
+        and metrics.protocol_target_variation_acceptable is False
+    )
+    coverage_failed = metrics.target_d95 < config.d95_min or protocol_target_failed
+    if coverage_failed and priorities.target < config.priority_ceiling:
         new = min(priorities.target * factor, config.priority_ceiling)
         candidates.append((ManualAction("increase_target_priority", f"Increase target priority {priorities.target:.2f} -> {new:.2f}", old_value=priorities.target, new_value=new), active, replace(priorities, target=new)))
     elif metrics.target_d95 > config.d95_min + 0.04 and priorities.target > 1.0:
@@ -199,10 +234,15 @@ def _candidate_settings(
     elif metrics.target_d02 < config.d02_max - 0.08 and priorities.hotspot > 1.0:
         new = max(priorities.hotspot / factor, config.priority_floor)
         candidates.append((ManualAction("decrease_hotspot_priority", f"Decrease target hot-spot priority {priorities.hotspot:.2f} -> {new:.2f}", old_value=priorities.hotspot, new_value=new), active, replace(priorities, hotspot=new)))
-    oar_violation = np.array([
-        max(value / limit - 1.0, 0.0)
-        for value, limit in zip(metrics.oar_mean, case.oar_limits, strict=True)
-    ])
+    if config.prostate_protocol_tier == "per_protocol" and metrics.protocol_oar_per_protocol_ratios:
+        oar_violation = np.maximum(np.asarray(metrics.protocol_oar_per_protocol_ratios) - 1.0, 0.0)
+    elif config.prostate_protocol_tier == "variation_acceptable" and metrics.protocol_oar_variation_ratios:
+        oar_violation = np.maximum(np.asarray(metrics.protocol_oar_variation_ratios) - 1.0, 0.0)
+    else:
+        oar_violation = np.array([
+            max(value / limit - 1.0, 0.0)
+            for value, limit in zip(metrics.oar_mean, case.oar_limits, strict=True)
+        ])
     for index, (violation, old) in enumerate(zip(oar_violation, priorities.oars, strict=True)):
         if violation > 0 and old < config.priority_ceiling:
             updated = list(priorities.oars)
@@ -228,7 +268,7 @@ def _candidate_settings(
                 replace(priorities, normal_tissue=new),
             )
         )
-    if metrics.target_d95 < config.d95_min and priorities.normal_tissue > config.priority_floor:
+    if coverage_failed and priorities.normal_tissue > config.priority_floor:
         new = max(priorities.normal_tissue / factor, config.priority_floor)
         candidates.append(
             (
@@ -377,11 +417,28 @@ def run_reference_optimizer_3d(
         if key < best_key:
             best, best_key = plan, key
         updated_oars = list(priorities.oars)
-        for index, (value, limit) in enumerate(zip(plan.metrics.oar_mean, case.oar_limits, strict=True)):
-            if value > limit:
+        if cfg.prostate_protocol_tier == "per_protocol" and plan.metrics.protocol_oar_per_protocol_ratios:
+            oar_ratios = plan.metrics.protocol_oar_per_protocol_ratios
+        elif cfg.prostate_protocol_tier == "variation_acceptable" and plan.metrics.protocol_oar_variation_ratios:
+            oar_ratios = plan.metrics.protocol_oar_variation_ratios
+        else:
+            oar_ratios = tuple(
+                value / limit for value, limit in zip(plan.metrics.oar_mean, case.oar_limits, strict=True)
+            )
+        for index, ratio in enumerate(oar_ratios):
+            if ratio > 1.0:
                 updated_oars[index] = min(updated_oars[index] * 2.5, 25.0)
+        protocol_target_failed = (
+            cfg.prostate_protocol_tier == "per_protocol"
+            and plan.metrics.protocol_target_per_protocol is False
+        ) or (
+            cfg.prostate_protocol_tier == "variation_acceptable"
+            and plan.metrics.protocol_target_variation_acceptable is False
+        )
         priorities = PlanningPriorities(
-            target=min(priorities.target * 2.5, 25.0) if plan.metrics.target_d95 < cfg.d95_min else priorities.target,
+            target=min(priorities.target * 2.5, 25.0)
+            if plan.metrics.target_d95 < cfg.d95_min or protocol_target_failed
+            else priorities.target,
             hotspot=min(priorities.hotspot * 2.5, 25.0) if plan.metrics.target_d02 > cfg.d02_max else priorities.hotspot,
             oars=tuple(updated_oars),
             normal_tissue=priorities.normal_tissue,

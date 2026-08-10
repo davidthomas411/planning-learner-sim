@@ -155,6 +155,14 @@ Target coverage will use explicit goal tiers. The primary standard tier requires
 
 Environment, demonstration, shared rollout, action-mask parity, and the primary iterative comparator have passed their current engineering checks. The 300-case generic dataset, 300-case prostate dataset, scalar-model variance pilot, matched three-dimensional image encoder, one-subject TCIA contour import, five-seed small-data pilot, and one-seed 240-case calibration are complete. The 240-case result removes the immediate moderate-case failure, but one seed cannot measure training variance. The 10,000-case experiment should not begin until at least four additional 240-case seeds reproduce the direction of effect and the saved plans pass human review.
 
+## Protocol-inspired prostate DVH objectives
+
+The prostate path now uses an explicit 60 Gy in 20 fraction evaluation. It reports PTV D98, D99, and D02 in Gy and NRG Table 10 rectum, bladder, and femoral-head Vx values in percent volume. Differentiable dose-volume penalties can be activated in the inner optimizer with a separate base weight. The planning configuration can require either the represented per-protocol tier or the variation-acceptable tier. This tier is now part of stop legality and the violation score. OAR priority changes use the worst active DVH-goal ratio when a protocol tier is active.
+
+A three-case, seven-field weight scan compared clinical DVH weights 2, 5, 10, and 20. Median PTV D98 increased from 58.31 Gy at weight 2 to 58.70 Gy at weight 20. Median CI95 decreased from 0.57 to 0.53, and median R50 increased from 11.24 to 11.49. The hard case's worst OAR constraint ratio increased from 1.30 to 1.46. Thus, a larger combined DVH weight improved target coverage but worsened the hard-case OAR and conformality tradeoff. Weight 5 is retained as a provisional balanced value; it is not frozen.
+
+A strict end-to-end smoke test required seven fields, D95 at least 0.94, D02 at most 1.10, CI95 at least 0.40, R50 at most 15, and the represented variation-acceptable DVH tier. No case was retained from three low-resolution attempts, and the reference optimizer also failed all three. This is a progression failure, not a software failure. The next calibration must increase resolution and optimizer budget and must allow the manual target and named-OAR priorities to resolve the observed tradeoff before a revised 300-case generation begins.
+
 ## Local 300-case train/validation dataset
 
 The development-resolution variance-pilot dataset was generated from the frozen split manifest with 8 x 8 fluence maps. It contains 240 training cases and 60 validation cases retained from 405 attempted cases. The endpoint and trajectory views contain exactly the same case identifiers, settings, and terminal states; only the trajectory view contains intermediate high-level actions. No training case appears in validation.

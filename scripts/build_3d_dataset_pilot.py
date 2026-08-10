@@ -139,6 +139,12 @@ def main() -> None:
     parser.add_argument("--normal-tissue-weight", type=float, default=0.0)
     parser.add_argument("--normal-tissue-threshold", type=float, default=0.5)
     parser.add_argument("--integral-dose-weight", type=float, default=0.0)
+    parser.add_argument("--clinical-dvh-weight", type=float, default=0.0)
+    parser.add_argument(
+        "--prostate-protocol-tier",
+        choices=("off", "per_protocol", "variation_acceptable"),
+        default="off",
+    )
     parser.add_argument("--d95-min", type=float, default=0.85)
     parser.add_argument("--d02-max", type=float, default=1.25)
     parser.add_argument("--max-steps", type=int, default=6)
@@ -171,6 +177,8 @@ def main() -> None:
         normal_tissue_weight=args.normal_tissue_weight,
         normal_tissue_threshold=args.normal_tissue_threshold,
         integral_dose_weight=args.integral_dose_weight,
+        clinical_dvh_weight=args.clinical_dvh_weight,
+        prostate_protocol_tier=args.prostate_protocol_tier,
         d95_min=args.d95_min,
         d02_max=args.d02_max,
         paddick_ci_95_min=args.paddick_ci_95_min,
@@ -188,6 +196,8 @@ def main() -> None:
         normal_tissue_weight=args.normal_tissue_weight,
         normal_tissue_threshold=args.normal_tissue_threshold,
         integral_dose_weight=args.integral_dose_weight,
+        clinical_dvh_weight=args.clinical_dvh_weight,
+        prostate_protocol_tier=args.prostate_protocol_tier,
         d95_min=args.d95_min,
         d02_max=args.d02_max,
         paddick_ci_95_min=args.paddick_ci_95_min,
@@ -239,6 +249,8 @@ def main() -> None:
             "normal_tissue_weight": args.normal_tissue_weight,
             "normal_tissue_threshold": args.normal_tissue_threshold,
             "integral_dose_weight": args.integral_dose_weight,
+            "clinical_dvh_weight": args.clinical_dvh_weight,
+            "prostate_protocol_tier": args.prostate_protocol_tier,
             "d95_min": args.d95_min,
             "d02_max": args.d02_max,
             "paddick_ci_95_min": args.paddick_ci_95_min,
@@ -335,6 +347,8 @@ def main() -> None:
         "normal_tissue_weight": args.normal_tissue_weight,
         "normal_tissue_threshold": args.normal_tissue_threshold,
         "integral_dose_weight": args.integral_dose_weight,
+        "clinical_dvh_weight": args.clinical_dvh_weight,
+        "prostate_protocol_tier": args.prostate_protocol_tier,
         "d95_min": args.d95_min,
         "d02_max": args.d02_max,
         "paddick_ci_95_min": args.paddick_ci_95_min,

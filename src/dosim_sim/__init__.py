@@ -19,6 +19,15 @@ from .optimizer3d import (
 )
 from .volume3d import SyntheticCase3D, generate_case_3d, generate_prostate_case_3d
 from .clinical3d import load_tcia_prostate_case
+from .prostate_protocol import (
+    DOSE_PER_FRACTION_GY,
+    FRACTIONS,
+    PRESCRIPTION_GY,
+    PROSTATE_60GY_20FX_OAR_GOALS,
+    evaluate_prostate_60gy20fx,
+    protocol_summary_rows,
+    protocol_violation_score,
+)
 from .planning3d import (
     HighLevelSearchConfig3D,
     PlanningStep3D,
@@ -80,6 +89,13 @@ __all__ = [
     "generate_case_3d",
     "generate_prostate_case_3d",
     "load_tcia_prostate_case",
+    "PRESCRIPTION_GY",
+    "FRACTIONS",
+    "DOSE_PER_FRACTION_GY",
+    "PROSTATE_60GY_20FX_OAR_GOALS",
+    "evaluate_prostate_60gy20fx",
+    "protocol_summary_rows",
+    "protocol_violation_score",
     "delivery_mode_3d",
     "standard_delivery_modes_3d",
     "optimize_beamlets",

@@ -5,6 +5,12 @@ from numpy.typing import NDArray
 
 from .dose3d import ImplicitDoseEngine3D
 from .objective import PlanningPriorities
+from .prostate_protocol import (
+    PROSTATE_60GY_20FX_OAR_GOALS,
+    evaluate_prostate_60gy20fx,
+    protocol_oar_max_ratios,
+    protocol_violation_score,
+)
 from .volume3d import SyntheticCase3D
 
 
@@ -22,6 +28,16 @@ class PlanMetrics3D:
     r50: float
     body_mean_dose: float
     field_count: int
+    protocol_per_protocol: bool | None = None
+    protocol_variation_acceptable: bool | None = None
+    protocol_target_per_protocol: bool | None = None
+    protocol_target_variation_acceptable: bool | None = None
+    protocol_violation_per_protocol: float | None = None
+    protocol_violation_variation: float | None = None
+    protocol_oar_per_protocol_ratios: tuple[float, ...] = ()
+    protocol_oar_variation_ratios: tuple[float, ...] = ()
+    target_d98_gy: float | None = None
+    target_d99_gy: float | None = None
 
 
 @dataclass(frozen=True)
@@ -38,6 +54,7 @@ def _loss_and_dose_gradient(
     case: SyntheticCase3D,
     dose: FloatArray,
     priorities: PlanningPriorities,
+    clinical_dvh_weight: float = 0.0,
 ) -> tuple[float, FloatArray]:
     gradient = np.zeros_like(dose, dtype=np.float32)
     target_values = dose[case.target]
@@ -65,6 +82,38 @@ def _loss_and_dose_gradient(
         excess = np.maximum(values - limit, 0.0)
         loss += priority * 5.0 * float(np.mean(excess**2))
         gradient[mask] += priority * 10.0 * excess / values.size
+
+    if clinical_dvh_weight > 0.0 and case.anatomy in {"prostate", "tcia_prostate"}:
+        # D98 >= 100% and D99 >= 95%.  The coldest permitted volume is
+        # excluded before the hinge penalty is applied.
+        for minimum, cold_fraction, coefficient in ((1.0, 0.02, 20.0), (0.95, 0.01, 10.0)):
+            cold_count = int(np.floor(cold_fraction * target_values.size))
+            ordered = np.argsort(target_values)
+            constrained = ordered[cold_count:]
+            under = np.maximum(minimum - target_values[constrained], 0.0)
+            loss += clinical_dvh_weight * priorities.target * coefficient * float(np.mean(under**2))
+            target_gradient = gradient[case.target]
+            target_gradient[constrained] -= (
+                clinical_dvh_weight * priorities.target * 2.0 * coefficient * under / constrained.size
+            )
+            gradient[case.target] = target_gradient
+
+        name_to_index = {name: index for index, name in enumerate(case.structure_names)}
+        for goal in PROSTATE_60GY_20FX_OAR_GOALS:
+            structure_index = name_to_index[goal.structure]
+            values = dose[case.oars[structure_index]]
+            allowed = int(np.floor(goal.per_protocol_volume_percent * values.size / 100.0))
+            ordered = np.argsort(values)[::-1]
+            constrained = ordered[allowed:]
+            excess = np.maximum(values[constrained] - goal.relative_dose, 0.0)
+            coefficient = 2.0
+            priority = priorities.oars[structure_index]
+            loss += clinical_dvh_weight * priority * coefficient * float(np.mean(excess**2))
+            structure_gradient = gradient[case.oars[structure_index]]
+            structure_gradient[constrained] += (
+                clinical_dvh_weight * priority * 2.0 * coefficient * excess / constrained.size
+            )
+            gradient[case.oars[structure_index]] = structure_gradient
     return loss, gradient
 
 
@@ -79,6 +128,11 @@ def evaluate_plan_3d(
     prescription = (dose >= 0.95) & case.body
     covered_target = float((prescription & case.target).sum())
     prescription_volume = float(prescription.sum())
+    protocol = (
+        evaluate_prostate_60gy20fx(case, dose)
+        if case.anatomy in {"prostate", "tcia_prostate"}
+        else None
+    )
     return PlanMetrics3D(
         loss=float(loss),
         target_d95=float(np.percentile(target_values, 5)),
@@ -89,6 +143,16 @@ def evaluate_plan_3d(
         r50=float(((dose >= 0.50) & case.body).sum()) / target_volume,
         body_mean_dose=float(np.mean(dose[case.body])),
         field_count=field_count,
+        protocol_per_protocol=protocol.per_protocol if protocol else None,
+        protocol_variation_acceptable=protocol.variation_acceptable if protocol else None,
+        protocol_target_per_protocol=protocol.target_per_protocol if protocol else None,
+        protocol_target_variation_acceptable=protocol.target_variation_acceptable if protocol else None,
+        protocol_violation_per_protocol=protocol_violation_score(protocol, "per_protocol") if protocol else None,
+        protocol_violation_variation=protocol_violation_score(protocol, "variation_acceptable") if protocol else None,
+        protocol_oar_per_protocol_ratios=protocol_oar_max_ratios(case, protocol, "per_protocol") if protocol else (),
+        protocol_oar_variation_ratios=protocol_oar_max_ratios(case, protocol, "variation_acceptable") if protocol else (),
+        target_d98_gy=protocol.target_d98_gy if protocol else None,
+        target_d99_gy=protocol.target_d99_gy if protocol else None,
     )
 
 
@@ -108,6 +172,7 @@ def optimize_fluence_3d(
     iterations: int = 60,
     learning_rate: float = 0.08,
     initial_fluence: FloatArray | None = None,
+    clinical_dvh_weight: float = 0.0,
 ) -> OptimizedPlan3D:
     """Automated inner loop for fixed beams and fixed human-set priorities."""
 
@@ -128,7 +193,9 @@ def optimize_fluence_3d(
 
     for step in range(1, iterations + 1):
         dose = engine.forward(fluence)
-        loss, dose_gradient = _loss_and_dose_gradient(case, dose, priorities)
+        loss, dose_gradient = _loss_and_dose_gradient(
+            case, dose, priorities, clinical_dvh_weight=clinical_dvh_weight
+        )
         fluence_gradient = engine.adjoint(dose_gradient)
         fluence_gradient += 0.001 * fluence
         fluence_gradient[~active] = 0.0
@@ -142,7 +209,9 @@ def optimize_fluence_3d(
         completed = step
 
     dose = engine.forward(fluence)
-    loss, _ = _loss_and_dose_gradient(case, dose, priorities)
+    loss, _ = _loss_and_dose_gradient(
+        case, dose, priorities, clinical_dvh_weight=clinical_dvh_weight
+    )
     return OptimizedPlan3D(
         active_beams=tuple(sorted(active_beams)),
         priorities=priorities,

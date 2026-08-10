@@ -1,6 +1,11 @@
 import numpy as np
 
 from dosim_sim.clinical3d import _pad_to_physical_cube
+from dosim_sim.prostate_protocol import (
+    PRESCRIPTION_GY,
+    PROSTATE_60GY_20FX_OAR_GOALS,
+    evaluate_prostate_60gy20fx,
+)
 
 from dosim_sim import (
     PlanningPriorities,
@@ -207,6 +212,20 @@ def test_prostate_phantom_has_named_pelvic_structures() -> None:
     assert rectum_center[1] < target_center[1]
     assert np.any(case.oars[2][: case.axis.size // 2])
     assert np.any(case.oars[2][case.axis.size // 2 :])
+
+
+def test_prostate_60gy20fx_dvh_metrics_use_absolute_dose_and_named_structures() -> None:
+    case = generate_prostate_case_3d(178, grid_size=32, difficulty="moderate")
+    dose = np.ones(case.body.shape, dtype=np.float32)
+    evaluation = evaluate_prostate_60gy20fx(case, dose)
+    assert evaluation.prescription_gy == 60.0
+    assert evaluation.fractions == 20
+    assert evaluation.target_d98_gy == PRESCRIPTION_GY
+    assert evaluation.target_d99_gy == PRESCRIPTION_GY
+    assert evaluation.target_d02_gy == PRESCRIPTION_GY
+    assert len(evaluation.oar_results) == len(PROSTATE_60GY_20FX_OAR_GOALS)
+    assert all(item.observed_volume_percent == 100.0 for item in evaluation.oar_results)
+    assert not evaluation.oars_variation_acceptable
 
 
 def test_clinical_arrays_are_padded_to_a_physical_cube() -> None:

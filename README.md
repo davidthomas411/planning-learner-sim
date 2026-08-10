@@ -180,9 +180,19 @@ uv run python scripts/build_3d_dataset_pilot.py --split-manifest outputs/splits/
 
 ## Run the prostate anatomy path
 
+The clinically recognizable prostate evaluation uses 60 Gy in 20 fractions (3 Gy per fraction). It reports PTV D98, D99, and D02 and the NRG Table 10 rectum, bladder, and femoral-head DVH goals in Gy and percent volume. The femoral heads remain one combined planning-priority group in the parametric phantom; this is an explicit temporary approximation. These goals do not convert the synthetic dose operator into a clinical dose calculation.
+
+Calibrate the differentiable DVH objective on paired seven-field plans:
+
+```powershell
+uv run python scripts/run_prostate_clinical_dvh_pilot.py --cases-per-stratum 4 --grid-size 64 --fluence-size 12 --iterations 200 --weights 0 2 5 10 --device cuda:0 --output-dir outputs/prostate_clinical_dvh_pilot
+```
+
+For a trajectory dataset, activate the objective and the separate protocol-inspired acceptance tier with `--clinical-dvh-weight 5 --prostate-protocol-tier variation_acceptable`. The protocol tier is stored in the attempt manifest and must use the same value during policy training and rollout.
+
 Generate matched parametric prostate demonstrations with a 64-cubed dose grid and 12 x 12 fluence maps:
 
-The command below records the stopped four-to-seven-field calibration. Do not use it to create the next learner dataset. Expert angle refinement, manual normal-tissue priority, and coverage-tier labels must be frozen first.
+The command below records the stopped four-to-seven-field calibration. Do not use it to create the next learner dataset. Expert angle refinement must be integrated before regeneration.
 
 ```powershell
 uv run python scripts/build_3d_dataset_pilot.py --retained-cases 300 --max-attempts 450 --automatic-train-count 240 --seed-start 106000 --grid-size 64 --anatomy prostate --fluence-size 12 --iterations 20 --deep-iterations 30 --reference-iterations 240 --initial-field-count 4 --minimum-field-count 7 --normal-tissue-weight 50 --normal-tissue-threshold 0.5 --integral-dose-weight 2 --d95-min 0.94 --d02-max 1.22 --paddick-ci-95-min 0.40 --r50-max 15 --max-steps 8 --beam-width 1 --deep-max-steps 10 --deep-beam-width 1 --device cuda:0 --output-dir outputs/prostate_manual_final7_300_v2
