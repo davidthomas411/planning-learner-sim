@@ -45,6 +45,17 @@ h1{font-size:24px;font-weight:500}.track{height:28px;background:#e8eaed;border-r
 <div class="gallery" id="gallery"></div>
 <script>
 const figures=[
+['00_selected_anatomy.png','Selected PTV and OAR overlap anatomy'],
+['01_tcia_overlap_review.png','TCIA contour overlap review'],
+['02_tcia_representative_planes.png','Representative TCIA anatomy planes'],
+['03_tcia_selected_cohort.png','Selected TCIA planning cohort'],
+['04_tcia_cohort_outcomes.png','TCIA planning outcomes and manual changes'],
+['05_tcia_final_metrics.png','TCIA final plan metrics'],
+['01_ptv_clinical_trajectory.png','PTV clinical metrics by manual step'],
+['02_manual_action_map.png','Manual PTV, hotspot, OAR, and normal-tissue actions'],
+['03_representative_ptv_review.png','PTV isodose and DVH review'],
+['04_starting_profile_outcomes.png','Fixed starting-profile calibration gates'],
+['05_major_variation_tradeoffs.png','Target and OAR trade-offs requiring physician review'],
 ['01_manual_trajectory.png','Planning trajectory'],
 ['02_action_map.png','Recorded manual actions'],
 ['02_representative_plan_review.png','Representative dose and DVH review'],
@@ -66,9 +77,10 @@ async function refresh(){try{const response=await fetch('progress.json?'+Date.no
 const value=Math.max(0,Math.min(100,p.percent_complete||0));document.getElementById('bar').style.width=value+'%';
 document.querySelector('.track').setAttribute('aria-valuenow',value.toFixed(1));document.getElementById('percent').textContent=value.toFixed(1)+'%';
 document.getElementById('phase').textContent=p.status==='complete'?'Complete':p.status==='failed'?'Failed':'Running';
-document.getElementById('count').textContent=p.completed+' / '+p.total+' '+(p.unit||'plans');
+const completed=Number(p.completed||0);const completedText=Number.isInteger(completed)?completed.toString():completed.toFixed(2);
+document.getElementById('count').textContent=completedText+' / '+p.total+' '+(p.unit||'plans');
 document.getElementById('eta').textContent=p.status==='complete'?'Finished in '+format(p.elapsed_seconds):p.estimated_seconds_remaining==null?'Estimating remaining time':format(p.estimated_seconds_remaining)+' remaining';
-document.getElementById('case').textContent=p.last_case?'Last completed: '+p.last_case+(p.last_weight==null?'':', DVH weight '+p.last_weight)+(p.last_target_priority==null?'':', target priority '+p.last_target_priority):'Waiting for first plan.';
+document.getElementById('case').textContent=p.status==='failed'&&p.error_message?p.error_message:p.last_case?'Last completed: '+p.last_case+(p.last_weight==null?'':', DVH weight '+p.last_weight)+(p.last_target_priority==null?'':', target priority '+p.last_target_priority):'Waiting for first plan.';
 document.getElementById('updated').textContent='Local update: '+new Date().toLocaleTimeString();
 document.getElementById('bar').className='bar '+(p.status==='complete'?'complete':p.status==='failed'?'failed':'');}catch(error){document.getElementById('updated').textContent='Waiting for progress file...';}}
 function format(seconds){seconds=Math.max(0,Math.round(seconds||0));const minutes=Math.floor(seconds/60);const remainder=seconds%60;return minutes?minutes+'m '+remainder+'s':remainder+'s';}
@@ -106,7 +118,15 @@ def write_progress(
     }
     temporary = output_dir / "progress.json.tmp"
     temporary.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-    temporary.replace(output_dir / "progress.json")
+    destination = output_dir / "progress.json"
+    for attempt in range(20):
+        try:
+            temporary.replace(destination)
+            break
+        except PermissionError:
+            if attempt == 19:
+                raise
+            time.sleep(0.05)
 
 
 def should_update_figures(completed: int, total: int, maximum_updates: int = 50) -> bool:
@@ -251,7 +271,7 @@ def main() -> None:
                 "r50": plan.metrics.r50,
             }
             for item in protocol_rows:
-                if item["structure"] == "PTV":
+                if item["structure"] in {"PTV", "Prostate"}:
                     continue
                 key = f"{item['structure']}_{item['metric']}".lower().replace(".", "p")
                 limit = float(str(item["per_protocol_goal"]).removeprefix("<="))

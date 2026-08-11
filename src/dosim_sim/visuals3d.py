@@ -10,6 +10,29 @@ from .optimizer3d import OptimizedPlan3D
 from .volume3d import SyntheticCase3D
 
 
+def add_hfs_orientation_labels(axis, view_name: str) -> None:
+    """Label a view in the canonical head-first supine patient convention."""
+
+    labels = {
+        "axial": ((0.50, 0.98, "A"), (0.50, 0.02, "P"), (0.02, 0.50, "R"), (0.98, 0.50, "L")),
+        "coronal": ((0.50, 0.98, "S"), (0.50, 0.02, "I"), (0.02, 0.50, "R"), (0.98, 0.50, "L")),
+        "sagittal": ((0.50, 0.98, "S"), (0.50, 0.02, "I"), (0.02, 0.50, "P"), (0.98, 0.50, "A")),
+    }
+    for x, y, label in labels[view_name.lower()]:
+        axis.text(
+            x,
+            y,
+            label,
+            transform=axis.transAxes,
+            ha="center",
+            va="center",
+            color="white",
+            fontsize=9,
+            fontweight="bold",
+            bbox={"facecolor": "black", "edgecolor": "none", "alpha": 0.55, "pad": 1.5},
+        )
+
+
 def _structure_overlay(case: SyntheticCase3D) -> np.ndarray:
     labels = np.zeros(case.body.shape, dtype=np.uint8)
     labels[case.oars[0]] = 2
@@ -35,6 +58,7 @@ def save_3d_case_slices(case: SyntheticCase3D, path: Path) -> None:
         axis.imshow(body_slice, origin="lower", cmap="Greys", vmin=0, vmax=1, alpha=0.22)
         axis.imshow(structure_slice, origin="lower", cmap=cmap, vmin=0, vmax=3, interpolation="nearest")
         axis.set_title(title)
+        add_hfs_orientation_labels(axis, title.split()[0])
         axis.set_xticks([])
         axis.set_yticks([])
     fig.suptitle("The same synthetic patient viewed in three orthogonal planes")
@@ -73,6 +97,7 @@ def save_3d_planning_steps(
         axes[0, column].imshow(labels, origin="lower", cmap=structure_cmap, vmin=0, vmax=3, alpha=0.28)
         axes[0, column].contour(case.target[:, :, axial_index].T, levels=[0.5], colors=["white"], linewidths=1.2)
         axes[0, column].set_title(f"Step {column}: {action}")
+        add_hfs_orientation_labels(axes[0, column], "axial")
         axes[0, column].set_xticks([])
         axes[0, column].set_yticks([])
 

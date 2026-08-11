@@ -1,9 +1,13 @@
+from dataclasses import replace
+
 import numpy as np
 
-from dosim_sim.clinical3d import _pad_to_physical_cube
+from dosim_sim.clinical3d import _pad_to_physical_cube, _to_hfs_planner_coordinates
 from dosim_sim.prostate_protocol import (
     PRESCRIPTION_GY,
     PROSTATE_60GY_20FX_OAR_GOALS,
+    anatomical_objective_conflicts,
+    dose_to_hottest_volume_gy,
     evaluate_prostate_60gy20fx,
 )
 
@@ -27,6 +31,11 @@ from dosim_sim.dataset import action_record, case_features, plan_state
 from dosim_sim.dataset3d import retention_eligible_3d
 from dosim_sim.delivery3d import prostate_delivery_modes_3d
 from dosim_sim.objective import evaluate_plan
+from dosim_sim.optimizer3d import (
+    evaluate_plan_3d,
+    ptv_minus_oars_optimization_target_3d,
+)
+from dosim_sim.planning3d import HighLevelSearchConfig3D, is_acceptable_3d
 
 
 def test_case_generation_is_reproducible() -> None:
@@ -178,6 +187,21 @@ def test_3d_inner_optimizer_respects_active_beams() -> None:
     assert np.all(plan.fluence[[1, 3]] == 0)
 
 
+def test_3d_inner_optimizer_can_normalize_between_stages() -> None:
+    case = generate_case_3d(10, grid_size=24)
+    engine = ImplicitDoseEngine3D(case, (0.0, 90.0, 180.0, 270.0), fluence_size=4)
+    plan = optimize_fluence_3d(
+        case,
+        engine,
+        (0, 1, 2, 3),
+        PlanningPriorities.for_case(case),
+        iterations=2,
+        target_normalization_d50=1.0,
+        target_normalization_interval=1,
+    )
+    assert np.isclose(plan.metrics.target_d50, 1.0, atol=1e-5)
+
+
 def test_3d_difficulty_generator_is_reproducible_and_stratified() -> None:
     easy = generate_case_3d(77, grid_size=32, difficulty="easy")
     hard = generate_case_3d(77, grid_size=32, difficulty="hard")
@@ -200,8 +224,16 @@ def test_prostate_phantom_has_named_pelvic_structures() -> None:
     assert case.structure_names == ("bladder", "rectum", "femoral_heads")
     assert len(case.oars) == 3
     assert np.array_equal(case.target, repeat.target)
+    assert case.clinical_target is not None
+    assert repeat.clinical_target is not None
+    assert np.array_equal(case.clinical_target, repeat.clinical_target)
     assert all(np.count_nonzero(mask) > 0 for mask in (case.target, *case.oars))
     assert not np.any(case.target & ~case.body)
+    assert not np.any(case.clinical_target & ~case.target)
+    assert not any(np.any(case.clinical_target & oar) for oar in case.oars)
+    margin_shell = case.target & ~case.clinical_target
+    assert np.any(margin_shell)
+    assert all(not np.any((case.target & oar) & ~margin_shell) for oar in case.oars)
 
     coordinates = np.meshgrid(case.axis, case.axis, case.axis, indexing="ij")
     target_center = np.array([values[case.target].mean() for values in coordinates])
@@ -213,6 +245,97 @@ def test_prostate_phantom_has_named_pelvic_structures() -> None:
     assert np.any(case.oars[2][: case.axis.size // 2])
     assert np.any(case.oars[2][case.axis.size // 2 :])
 
+    body_area_by_slice = case.body.sum(axis=(0, 1))
+    occupied_slices = np.flatnonzero(body_area_by_slice)
+    assert occupied_slices.size > 0.65 * case.axis.size
+    central_occupied = body_area_by_slice[case.axis.size // 3 : 2 * case.axis.size // 3]
+    assert central_occupied.min() > 0.70 * central_occupied.max()
+    assert body_area_by_slice[0] == 0
+    assert body_area_by_slice[-1] == 0
+    central_body = case.body[:, :, case.axis.size // 2]
+    occupied = np.argwhere(central_body)
+    lateral_extent = occupied[:, 0].max() - occupied[:, 0].min()
+    depth_extent = occupied[:, 1].max() - occupied[:, 1].min()
+    assert lateral_extent > depth_extent
+
+
+def test_ptv_minus_oar_target_relaxes_only_the_ptv_margin_overlap() -> None:
+    case = generate_prostate_case_3d(177, grid_size=32, difficulty="moderate")
+    assert case.clinical_target is not None
+    bladder = case.oars[0].copy()
+    margin_voxel = tuple(np.argwhere(case.target & ~case.clinical_target)[0])
+    bladder[margin_voxel] = True
+    case = replace(case, oars=(bladder, *case.oars[1:]))
+
+    target = ptv_minus_oars_optimization_target_3d(case, (0,), 0.90)
+
+    assert np.array_equal(
+        target.relaxed_overlap_mask,
+        case.target & case.oars[0] & ~case.clinical_target,
+    )
+    assert np.all(case.clinical_target <= target.coverage_mask)
+    assert not np.any(target.coverage_mask & target.relaxed_overlap_mask)
+    assert np.array_equal(
+        target.coverage_mask | target.relaxed_overlap_mask,
+        case.target,
+    )
+
+
+def test_split_target_gate_keeps_ctv_and_overlap_floor_explicit() -> None:
+    case = generate_prostate_case_3d(177, grid_size=32, difficulty="moderate")
+    assert case.clinical_target is not None
+    bladder = case.oars[0].copy()
+    margin_voxel = tuple(np.argwhere(case.target & ~case.clinical_target)[0])
+    bladder[margin_voxel] = True
+    case = replace(case, oars=(bladder, *case.oars[1:]))
+    target = ptv_minus_oars_optimization_target_3d(case, (0,), 0.90)
+    config = HighLevelSearchConfig3D(
+        d95_min=0.95,
+        d98_min=0.95,
+        d50_min=0.99,
+        d50_max=1.01,
+        d02_max=1.05,
+        covering_isodose_ratio_95_max=1.10,
+        minimum_field_count=7,
+        overlap_floor_is_acceptance=True,
+    )
+
+    dose = np.zeros(case.body.shape, dtype=np.float32)
+    dose[target.coverage_mask] = 1.0
+    dose[target.relaxed_overlap_mask] = 0.91
+    metrics = evaluate_plan_3d(
+        case,
+        dose,
+        loss=0.0,
+        field_count=7,
+        optimization_target=target,
+    )
+    assert metrics.target_d98 < metrics.optimization_target_d98
+    assert metrics.clinical_target_d98 == 1.0
+    assert np.isclose(metrics.relaxed_overlap_d98, 0.91)
+    assert is_acceptable_3d(metrics, case, config)
+
+    dose[target.relaxed_overlap_mask] = 0.89
+    below_floor = evaluate_plan_3d(
+        case,
+        dose,
+        loss=0.0,
+        field_count=7,
+        optimization_target=target,
+    )
+    assert not is_acceptable_3d(below_floor, case, config)
+
+
+def test_hard_prostate_phantoms_include_limited_rectum_overlap() -> None:
+    overlap_fractions = []
+    for seed in range(220, 260):
+        case = generate_prostate_case_3d(seed, grid_size=48, difficulty="hard")
+        overlap = np.count_nonzero(case.target & case.oars[1])
+        overlap_fractions.append(overlap / np.count_nonzero(case.target))
+
+    assert max(overlap_fractions) >= 0.01
+    assert max(overlap_fractions) <= 0.20
+
 
 def test_prostate_60gy20fx_dvh_metrics_use_absolute_dose_and_named_structures() -> None:
     case = generate_prostate_case_3d(178, grid_size=32, difficulty="moderate")
@@ -223,9 +346,123 @@ def test_prostate_60gy20fx_dvh_metrics_use_absolute_dose_and_named_structures() 
     assert evaluation.target_d98_gy == PRESCRIPTION_GY
     assert evaluation.target_d99_gy == PRESCRIPTION_GY
     assert evaluation.target_d02_gy == PRESCRIPTION_GY
+    assert evaluation.target_d1cc_gy == PRESCRIPTION_GY
+    assert evaluation.prostate_v60_percent == 100.0
+    assert [
+        (goal.structure, goal.dose_gy, goal.per_protocol_volume_percent)
+        for goal in PROSTATE_60GY_20FX_OAR_GOALS
+    ] == [
+        ("rectum", 37.0, 50.0),
+        ("rectum", 46.0, 30.0),
+        ("bladder", 37.0, 50.0),
+        ("bladder", 46.0, 30.0),
+        ("femur_head_l", 43.0, 5.0),
+        ("femur_head_r", 43.0, 5.0),
+    ]
     assert len(evaluation.oar_results) == len(PROSTATE_60GY_20FX_OAR_GOALS)
     assert all(item.observed_volume_percent == 100.0 for item in evaluation.oar_results)
     assert not evaluation.oars_variation_acceptable
+
+
+def test_d1cc_uses_physical_voxel_volume() -> None:
+    relative_dose = np.asarray([1.20, 1.10, 1.00, 0.90], dtype=np.float32)
+    assert np.isclose(
+        dose_to_hottest_volume_gy(relative_dose, voxel_volume_cc=0.50),
+        66.0,
+    )
+
+
+def test_institutional_prostate_gate_uses_v60_d99_d1cc_and_conformity() -> None:
+    case = generate_prostate_case_3d(180, grid_size=32, difficulty="easy")
+    config = HighLevelSearchConfig3D(
+        d99_min=0.95,
+        d1cc_max=1.05,
+        clinical_target_v100_min=0.99,
+        covering_isodose_ratio_95_max=1.10,
+        minimum_field_count=7,
+        prostate_protocol_tier="oar_per_protocol",
+    )
+    dose = np.zeros(case.body.shape, dtype=np.float32)
+    dose[case.target] = 1.0
+    metrics = evaluate_plan_3d(case, dose, loss=0.0, field_count=7)
+    assert is_acceptable_3d(metrics, case, config)
+
+    cold = dose.copy()
+    prostate_indices = np.argwhere(case.clinical_target)
+    cold_count = max(1, int(np.ceil(0.02 * len(prostate_indices))))
+    for index in prostate_indices[:cold_count]:
+        cold[tuple(index)] = 0.99
+    cold_metrics = evaluate_plan_3d(case, cold, loss=0.0, field_count=7)
+    assert cold_metrics.clinical_target_v100 < 0.99
+    assert not is_acceptable_3d(cold_metrics, case, config)
+
+    hot = dose.copy()
+    hottest_voxels = int(np.ceil(1.0 / float(case.voxel_volume_cc)))
+    for index in np.argwhere(case.target)[:hottest_voxels]:
+        hot[tuple(index)] = 1.06
+    hot_metrics = evaluate_plan_3d(case, hot, loss=0.0, field_count=7)
+    assert hot_metrics.target_d1cc > 1.05
+    assert not is_acceptable_3d(hot_metrics, case, config)
+
+
+def test_trial_variation_accepts_one_target_or_oar_variation_but_not_both() -> None:
+    case = generate_prostate_case_3d(182, grid_size=32, difficulty="easy")
+    baseline = np.zeros(case.body.shape, dtype=np.float32)
+    baseline[case.target] = 1.0
+
+    target_variation = baseline.copy()
+    margin_indices = np.argwhere(case.target & ~case.clinical_target)
+    cold_count = int(np.ceil(0.03 * np.count_nonzero(case.target)))
+    assert len(margin_indices) >= cold_count
+    for index in margin_indices[:cold_count]:
+        target_variation[tuple(index)] = 0.90
+    target_evaluation = evaluate_prostate_60gy20fx(case, target_variation)
+    assert not target_evaluation.target_per_protocol
+    assert target_evaluation.target_variation_acceptable
+    assert target_evaluation.oars_per_protocol
+    assert target_evaluation.acceptance_class == "acceptable_target_coverage_variation"
+
+    oar_variation = baseline.copy()
+    bladder = case.evaluation_oars[0]
+    available = np.argwhere(bladder & ~case.target)
+    warm_count = int(np.ceil(0.32 * np.count_nonzero(bladder)))
+    assert len(available) >= warm_count
+    for index in available[:warm_count]:
+        oar_variation[tuple(index)] = 0.80
+    oar_evaluation = evaluate_prostate_60gy20fx(case, oar_variation)
+    assert oar_evaluation.target_per_protocol
+    assert not oar_evaluation.oars_per_protocol
+    assert oar_evaluation.oars_variation_acceptable
+    assert oar_evaluation.acceptance_class == "acceptable_oar_variation"
+
+    combined = target_variation.copy()
+    for index in available[:warm_count]:
+        combined[tuple(index)] = 0.80
+    combined_evaluation = evaluate_prostate_60gy20fx(case, combined)
+    assert not combined_evaluation.variation_acceptable
+    assert combined_evaluation.acceptance_class == "major_variation"
+
+
+def test_anatomical_conflict_detects_unavoidable_oar_volume() -> None:
+    case = generate_prostate_case_3d(181, grid_size=32, difficulty="easy")
+    bladder = case.target.copy()
+    evaluation_oars = list(case.evaluation_oars)
+    evaluation_oars[0] = bladder
+    planning_oars = list(case.oars)
+    planning_oars[0] = bladder
+    conflict_case = replace(
+        case,
+        oars=tuple(planning_oars),
+        evaluation_oars=tuple(evaluation_oars),
+    )
+    conflicts = anatomical_objective_conflicts(conflict_case)
+    bladder_conflicts = [value for value in conflicts if value.goal.structure == "bladder"]
+    assert {value.goal.dose_gy for value in bladder_conflicts} == {37.0, 46.0}
+    assert all(value.minimum_volume_percent >= 95.0 for value in bladder_conflicts)
+    assert all(
+        value.minimum_volume_percent_with_standard_target > 99.0
+        for value in bladder_conflicts
+    )
 
 
 def test_clinical_arrays_are_padded_to_a_physical_cube() -> None:
@@ -237,6 +474,14 @@ def test_clinical_arrays_are_padded_to_a_physical_cube() -> None:
     padded_narrow = _pad_to_physical_cube([narrow], (4.0, 2.0, 1.0))[0]
     assert padded_narrow.shape == (5, 10, 20)
     assert padded_narrow[:, 2:7, 7:12].all()
+
+
+def test_clinical_hfs_conversion_places_anterior_at_positive_y() -> None:
+    raw = np.arange(2 * 3 * 4).reshape(2, 3, 4)
+    converted = _to_hfs_planner_coordinates((raw,))[0]
+    assert np.array_equal(converted[:, 0, :], raw[:, -1, :])
+    assert np.array_equal(converted[:, -1, :], raw[:, 0, :])
+    assert converted.strides[1] > 0
 
 
 def test_delivery_complexity_modes_have_expected_angular_sampling() -> None:

@@ -140,18 +140,35 @@ def main() -> None:
     parser.add_argument("--normal-tissue-threshold", type=float, default=0.5)
     parser.add_argument("--integral-dose-weight", type=float, default=0.0)
     parser.add_argument("--clinical-dvh-weight", type=float, default=0.0)
+    parser.add_argument("--target-hotspot-threshold", type=float, default=1.10)
+    parser.add_argument("--target-hotspot-weight", type=float, default=5.0)
+    parser.add_argument("--high-dose-normal-tissue-weight", type=float, default=0.0)
+    parser.add_argument("--high-dose-normal-tissue-threshold", type=float, default=0.95)
+    parser.add_argument("--target-normalization-d98", type=float)
+    parser.add_argument("--target-normalization-d50", type=float)
+    parser.add_argument("--target-normalization-interval", type=int, default=0)
     parser.add_argument(
         "--prostate-protocol-tier",
-        choices=("off", "per_protocol", "variation_acceptable"),
+        choices=(
+            "off",
+            "per_protocol",
+            "variation_acceptable",
+            "oar_per_protocol",
+            "oar_variation_acceptable",
+        ),
         default="off",
     )
     parser.add_argument("--d95-min", type=float, default=0.85)
+    parser.add_argument("--d98-min", type=float, default=0.0)
+    parser.add_argument("--d50-min", type=float, default=0.0)
+    parser.add_argument("--d50-max", type=float, default=float("inf"))
     parser.add_argument("--d02-max", type=float, default=1.25)
     parser.add_argument("--max-steps", type=int, default=6)
     parser.add_argument("--beam-width", type=int, default=3)
     parser.add_argument("--deep-max-steps", type=int, default=10)
     parser.add_argument("--deep-beam-width", type=int, default=4)
     parser.add_argument("--paddick-ci-95-min", type=float, default=0.0)
+    parser.add_argument("--covering-isodose-ratio-95-max", type=float, default=float("inf"))
     parser.add_argument("--r50-max", type=float, default=float("inf"))
     parser.add_argument("--minimum-field-count", type=int, default=0)
     parser.add_argument("--device", default="cuda:0")
@@ -178,10 +195,21 @@ def main() -> None:
         normal_tissue_threshold=args.normal_tissue_threshold,
         integral_dose_weight=args.integral_dose_weight,
         clinical_dvh_weight=args.clinical_dvh_weight,
+        target_hotspot_threshold=args.target_hotspot_threshold,
+        target_hotspot_weight=args.target_hotspot_weight,
+        high_dose_normal_tissue_weight=args.high_dose_normal_tissue_weight,
+        high_dose_normal_tissue_threshold=args.high_dose_normal_tissue_threshold,
+        target_normalization_d98=args.target_normalization_d98,
+        target_normalization_d50=args.target_normalization_d50,
+        target_normalization_interval=args.target_normalization_interval,
         prostate_protocol_tier=args.prostate_protocol_tier,
         d95_min=args.d95_min,
+        d98_min=args.d98_min,
+        d50_min=args.d50_min,
+        d50_max=args.d50_max,
         d02_max=args.d02_max,
         paddick_ci_95_min=args.paddick_ci_95_min,
+        covering_isodose_ratio_95_max=args.covering_isodose_ratio_95_max,
         r50_max=args.r50_max,
         minimum_field_count=args.minimum_field_count,
     )
@@ -197,10 +225,21 @@ def main() -> None:
         normal_tissue_threshold=args.normal_tissue_threshold,
         integral_dose_weight=args.integral_dose_weight,
         clinical_dvh_weight=args.clinical_dvh_weight,
+        target_hotspot_threshold=args.target_hotspot_threshold,
+        target_hotspot_weight=args.target_hotspot_weight,
+        high_dose_normal_tissue_weight=args.high_dose_normal_tissue_weight,
+        high_dose_normal_tissue_threshold=args.high_dose_normal_tissue_threshold,
+        target_normalization_d98=args.target_normalization_d98,
+        target_normalization_d50=args.target_normalization_d50,
+        target_normalization_interval=args.target_normalization_interval,
         prostate_protocol_tier=args.prostate_protocol_tier,
         d95_min=args.d95_min,
+        d98_min=args.d98_min,
+        d50_min=args.d50_min,
+        d50_max=args.d50_max,
         d02_max=args.d02_max,
         paddick_ci_95_min=args.paddick_ci_95_min,
+        covering_isodose_ratio_95_max=args.covering_isodose_ratio_95_max,
         r50_max=args.r50_max,
         minimum_field_count=args.minimum_field_count,
     )
@@ -250,10 +289,21 @@ def main() -> None:
             "normal_tissue_threshold": args.normal_tissue_threshold,
             "integral_dose_weight": args.integral_dose_weight,
             "clinical_dvh_weight": args.clinical_dvh_weight,
+            "target_hotspot_threshold": args.target_hotspot_threshold,
+            "target_hotspot_weight": args.target_hotspot_weight,
+            "high_dose_normal_tissue_weight": args.high_dose_normal_tissue_weight,
+            "high_dose_normal_tissue_threshold": args.high_dose_normal_tissue_threshold,
+            "target_normalization_d98": args.target_normalization_d98,
+            "target_normalization_d50": args.target_normalization_d50,
+            "target_normalization_interval": args.target_normalization_interval,
             "prostate_protocol_tier": args.prostate_protocol_tier,
             "d95_min": args.d95_min,
+            "d98_min": args.d98_min,
+            "d50_min": args.d50_min,
+            "d50_max": args.d50_max,
             "d02_max": args.d02_max,
             "paddick_ci_95_min": args.paddick_ci_95_min,
+            "covering_isodose_ratio_95_max": args.covering_isodose_ratio_95_max,
             "r50_max": args.r50_max,
             "minimum_field_count": args.minimum_field_count,
         }
@@ -348,10 +398,21 @@ def main() -> None:
         "normal_tissue_threshold": args.normal_tissue_threshold,
         "integral_dose_weight": args.integral_dose_weight,
         "clinical_dvh_weight": args.clinical_dvh_weight,
+        "target_hotspot_threshold": args.target_hotspot_threshold,
+        "target_hotspot_weight": args.target_hotspot_weight,
+        "high_dose_normal_tissue_weight": args.high_dose_normal_tissue_weight,
+        "high_dose_normal_tissue_threshold": args.high_dose_normal_tissue_threshold,
+        "target_normalization_d98": args.target_normalization_d98,
+        "target_normalization_d50": args.target_normalization_d50,
+        "target_normalization_interval": args.target_normalization_interval,
         "prostate_protocol_tier": args.prostate_protocol_tier,
         "d95_min": args.d95_min,
+        "d98_min": args.d98_min,
+        "d50_min": args.d50_min,
+        "d50_max": args.d50_max,
         "d02_max": args.d02_max,
         "paddick_ci_95_min": args.paddick_ci_95_min,
+        "covering_isodose_ratio_95_max": args.covering_isodose_ratio_95_max,
         "r50_max": args.r50_max,
         "minimum_field_count": args.minimum_field_count,
     }

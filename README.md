@@ -180,7 +180,7 @@ uv run python scripts/build_3d_dataset_pilot.py --split-manifest outputs/splits/
 
 ## Run the prostate anatomy path
 
-The clinically recognizable prostate evaluation uses 60 Gy in 20 fractions (3 Gy per fraction). It reports PTV D98 and D99 and the NRG Table 10 rectum, bladder, and femoral-head DVH goals in Gy and percent volume. PTV D02 is reported as a separate engineering diagnostic; it is not treated as the protocol D0.03-cc maximum. The femoral heads remain one combined planning-priority group in the parametric phantom; this is an explicit temporary approximation. These goals do not convert the synthetic dose operator into a clinical dose calculation.
+The active prostate evaluator uses the institutional objective set approved in December 2023 for 60 Gy in 20 fractions. It requires prostate V60 Gy at least 99%, PTV D99 at least 57 Gy, PTV D1cc at most 63 Gy, rectum V37 Gy at most 50% and V46 Gy at most 30%, bladder V37 Gy at most 50% and V46 Gy at most 30%, and separate left and right femoral-head V43 Gy at most 5%. The clinical table has no variation limits. The study reports those results as per protocol. A separate trial-informed acceptable-variation class permits PTV V57 Gy from 95% to less than 99% only when every institutional OAR limit passes, or permits a rectum or bladder volume limit to be exceeded by no more than 5 percentage points only when standard target coverage passes. Prostate V60 Gy, PTV D1cc, femoral-head limits, and the retained conformity ratio are not relaxed. Simultaneous target and OAR variation requires physician review. PTV D98, D50, D2, Paddick conformity index, and R50 are diagnostic outputs only. The left and right femoral heads have separate evaluator masks but share one manual planning-priority control. These goals do not convert the surrogate dose operator into a clinical dose calculation.
 
 Calibrate the differentiable DVH objective on paired seven-field plans:
 
@@ -228,11 +228,49 @@ The status page displays available summary and plan-review figures below the pro
 
 The launcher adds a local timestamp to every new output folder. For example, `outputs/prostate_next_run` becomes `outputs/prostate_next_run_20260810_153045`. The launcher prints the exact path and stores it in `processes.json`. Use `--no-timestamp` only when an exact path is required. `--serve-only` always uses the exact supplied path so that an existing run can be reopened.
 
+Run the current clinical prostate planning pilot with:
+
+```powershell
+uv run python scripts/start_prostate_clinical_calibration.py --pilot ptv_manual --cases 12 --port 8777 --output-dir outputs/prostate_ptv_manual_pilot12
+```
+
+This pilot uses one prostate contour, one PTV, three OAR priority groups, seven fixed coplanar fields, a 64-cubed dose grid, and 64 x 64 fluence maps. The current calibration template uses 1000 Adam iterations, a learning rate of 0.02, and a 60 Gy PTV D1cc planning objective with base weight 50. The clinical D1cc evaluator remains 63 Gy; the lower optimizer objective is recorded separately and is not an acceptance rule. The active clinical review uses the December 2023 institutional evaluator, the trial-informed acceptable-variation class, the retained conformity ratio, and the fixed seven-field representation. It does not use the earlier NRG limits, D50 range, D98 gate, or D2 gate. The allowed manual changes are PTV-minus-bladder or PTV-minus-rectum structure creation and changes to target, hotspot, named-OAR, or normal-tissue priorities. A PTV-minus-OAR action keeps the prostate at full dose and permits limited dose reduction in the PTV-margin overlap while requiring full-PTV V57 Gy of at least 95%. The reviewer first tests a named OAR-weight change when standard target coverage can support an acceptable OAR variation. Before further changes, it checks whether both permitted variation paths are geometrically impossible. The optimizer controls fluence and does not create manual action labels. Each case receives dose planes with exact 57, 60, and 63 Gy contours, a cumulative DVH, every evaluator value with its limit, the acceptance class, and a short accept-or-change statement.
+
+The current development calibration uses four fixed starting profiles: balanced reference, guarded OAR stress, hotspot stress, and conformity stress. The balanced profile supplies stop examples. The three stress profiles start with target priority 3.0. Their named-OAR, hotspot, and normal-tissue priorities are 0.10, 0.04, and 0.02, respectively. These values produced near-limit rather than gross development failures in the full 15-patient initial-state screen. If a related clinical metric fails, the manual reviewer increases the active priority by a factor of 3.0. These are preassigned planning states. They are not selected by an optimizer search. The 15-patient development list is `data/manifests/tcia_development15.txt`; four profiles produce 60 planning episodes but only 15 independent patients.
+
+The response to every manual action is saved. A target action must improve PTV V57 Gy by at least 1 percentage point. A hotspot action must reduce PTV D1cc by at least 0.3 Gy. An OAR or PTV-minus-OAR action must reduce the relevant OAR volume by at least 1 percentage point or 10% of the current excess. A normal-tissue action must reduce the covering-isodose ratio by at least 0.01. After two consecutive nonresponsive actions of the same class, the planner changes strategy or records a need for physician review. Repeated nonresponsive actions remain in the audit data and are excluded from expert labels. Major variations save target-preserved and OAR-preserved states and do not receive an automatic accept label.
+
+The starting-profile gate separates the balanced control from the stress profiles. At least 90% of balanced controls must be initially acceptable. From 40% to 80% of stress-profile plans must fail initially. The gate also rejects gross initial states. PTV D1cc must be at most 70 Gy, the 57 Gy covering-isodose ratio must be at most 1.25, the worst OAR objective ratio must be at most 1.50, and PTV V57 Gy must be at least 90%. These values limit development-case severity. They do not replace the clinical acceptance objectives.
+
+After the retained profiles pass the one-patient correction check, run the 60-episode development calibration with:
+
+```powershell
+uv run --extra clinical --extra gpu python scripts/start_prostate_clinical_calibration.py --pilot ptv_manual --anatomy-source tcia --tcia-subject-file data/manifests/tcia_development15.txt --cases 15 --starting-profiles balanced_reference oar_guarded hotspot_stress conformity_stress --delivery-mode static_7 --grid-size 64 --fluence-size 64 --iterations 1000 --max-steps 8 --device cuda:0 --port 8829 --output-dir outputs/tcia_final_manual_trajectories60
+```
+
+The status page adds a starting-profile gate figure and a major-variation trade-off figure. Unexpected run errors change the progress status to `failed`. A nonfinite or grossly scaled dose during one recalculation is recorded as a technical failure for that episode instead of being used as an expert demonstration.
+
+The independent TCIA evaluation is fixed in `data/manifests/tcia_locked101_profiles.csv`. The manifest excludes all 15 development patients and assigns exactly one starting profile to each of the remaining 101 patients. It contains 10 balanced-reference, 21 guarded-OAR, 35 hotspot-stress, and 35 conformity-stress episodes. Assignment is proportional within the 31 margin-only and 70 interface-overlap anatomy strata and is spread across the observed PTV-OAR overlap range. Its SHA-256 digest is `7dc86d32fb94680aeac8e5e8438fb22f4a74355f2b61c11e7c722535647843ec`. The runner reads the patient, profile, order, and case count from this file. Do not change this manifest after the first validation dose is calculated.
+
+Run the locked evaluation only after the code revision is recorded:
+
+```powershell
+uv run --extra clinical --extra gpu python scripts/start_prostate_clinical_calibration.py --pilot ptv_manual --anatomy-source tcia --tcia-episode-manifest data/manifests/tcia_locked101_profiles.csv --cases 101 --delivery-mode static_7 --grid-size 64 --fluence-size 64 --iterations 1000 --max-steps 8 --device cuda:0 --port 8831 --output-dir outputs/tcia_locked101_validation
+```
+
+Use anatomy-only OAR-stress selection when manual priority changes are required for trajectory calibration:
+
+```powershell
+uv run python scripts/start_prostate_clinical_calibration.py --pilot ptv_manual --selection-mode oar_stress --stress-structure balanced --cases 10 --seed-start 210000 --minimum-bladder-overlap-fraction 0.135 --minimum-rectum-overlap-fraction 0.060 --minimum-bladder-ptv-overlap-fraction 0.10 --minimum-rectum-ptv-overlap-fraction 0.025 --maximum-ptv-overlap-fraction 0.20 --port 8792 --output-dir outputs/prostate_ptv_margin_only_balanced
+```
+
+The parametric generator creates the prostate/CTV first and expands it by 5 mm to form the PTV. The bladder and whole rectum do not overlap the prostate/CTV. They can overlap only the PTV margin. A 3 mm posterior margin was tested and rejected for this simulation because it was smaller than one voxel on the 64-cubed grid and gave unstable overlap counts across grid resolutions. The balanced selector alternates bladder and rectum stress cases. It uses structure masks before dose calculation. It stores each accepted seed, the named overlapping OAR, overlap as a fraction of OAR volume, overlap as a fraction of PTV volume, overlap as a fraction of the PTV margin shell, and the CTV-OAR overlap voxel count in `cohort_manifest.jsonl`. Bladder and rectum use separate overlap thresholds because their volumes and contact surfaces differ. Cases with more than 20% PTV overlap are excluded. Dose results do not affect cohort selection. The status page shows the selected anatomy before planning starts.
+
 For large runs, live summary figures are updated at most 50 times. The progress file still updates after every completed case. This limit reduces plotting overhead without changing any simulation result.
 
 The presimulation profiling findings and the four-A100 throughput gate are defined in `PERFORMANCE_PLAN.md`.
 
-For a trajectory dataset, activate the objective and the separate protocol-inspired acceptance tier with `--clinical-dvh-weight 5 --prostate-protocol-tier variation_acceptable`. The protocol tier is stored in the attempt manifest and must use the same value during policy training and rollout.
+The active institutional table has one evaluator limit for each metric and no variation tier. The compatibility option `oar_per_protocol` selects these OAR evaluator limits. It is stored in the attempt manifest and must have the same value during policy training and rollout.
 
 Generate matched parametric prostate demonstrations with a 64-cubed dose grid and 12 x 12 fluence maps:
 
@@ -250,14 +288,27 @@ uv run python scripts/build_3d_dataset_pilot.py --anatomy prostate --split-manif
 uv run python scripts/merge_3d_dataset_shards.py outputs/prostate_300_train outputs/prostate_300_validation --expected-train 240 --expected-validation 60 --output-dir outputs/prostate_300_merged
 ```
 
-Download one public TCIA subject and render the imported contours:
+Download a stratified TCIA anatomy pilot, review the contours, and run a bounded planning calibration:
 
 ```powershell
-uv run python scripts/download_tcia_prostate_subject.py Prostate-AEC-051
+uv run --extra clinical python scripts/download_tcia_prostate_subject.py --count 12
+uv run --extra clinical python scripts/review_tcia_prostate_cohort.py --cases 12 --grid-size 64 --output-dir outputs/tcia_prostate_anatomy12_<timestamp>
 uv run --extra clinical python scripts/render_tcia_prostate_case.py data/tcia/Prostate-AEC-051 --grid-size 64 --output outputs/tcia_prostate_preview.png
+uv run --extra clinical --extra gpu python scripts/run_prostate_ptv_manual_pilot.py --anatomy-source tcia --tcia-subjects Prostate-AEC-133 Prostate-AEC-122 Prostate-AEC-026 --cases 3 --grid-size 64 --fluence-size 32 --iterations 500 --max-steps 8 --device cuda:0 --output-dir outputs/tcia_ptv_margin_only3_<timestamp>
 ```
 
-The TCIA contour-only stress test uses at least 24 x 24 fluence maps. Raw DICOM data under `data/tcia` is excluded from Git.
+The TCIA collection is the main source for clinical-anatomy planning tests. The parametric phantom remains available for unit tests and controlled ablations. The RTSTRUCT files do not contain an external body contour, image orientation, or image spacing. The importer therefore uses the CT series to define the body and spatial grid. It accepts only standard axial head-first supine CT. It converts the DICOM posterior-positive row direction to the simulator anterior-positive y direction. Axial figures use the radiological display convention: anterior at the top, posterior at the bottom, patient right at image left, and patient left at image right. CT Hounsfield units do not modify the current water-equivalent dose calculation. Imported masks are cached by grid size, PTV margin, and importer version so that later planning runs do not repeat DICOM decoding. Cases with missing required contours are excluded and retained in an exclusion record. Cases with prostate/CTV overlap with an OAR are excluded from the primary margin-only cohort and retained for a separate edge-case analysis. Raw DICOM data and derived mask caches under `data/tcia` are excluded from Git.
+
+The 100-patient pilot uses a fixed post-QC subject file. It selects every available margin-only case first, then samples valid interface-overlap cases across the observed overlap range. It stops if fewer than 100 valid unique patients are available.
+
+```powershell
+uv run --extra clinical python scripts/download_tcia_prostate_subject.py --count 131 --status-dir outputs/tcia_full_collection_download_<timestamp>
+uv run --extra clinical python scripts/review_tcia_prostate_cohort.py --cases 200 --grid-size 64 --output-dir outputs/tcia_prostate_anatomy_full_<timestamp>
+uv run python scripts/select_tcia_planning_cohort.py --metrics-csv outputs/tcia_prostate_anatomy_full_<timestamp>/tcia_anatomy_metrics.csv --count 100 --output-dir outputs/tcia_planning_selection100_<timestamp>
+uv run --extra clinical --extra gpu python scripts/start_prostate_clinical_calibration.py --pilot ptv_manual --anatomy-source tcia --tcia-subject-file outputs/tcia_planning_selection100_<timestamp>/selected_subjects.txt --cases 100 --delivery-mode static_7 --max-steps 8 --port 8804 --output-dir outputs/tcia_ptv_manual100
+```
+
+The full scale-up design is in [LARGER_DATASET_PLAN.md](LARGER_DATASET_PLAN.md). PortPy is the preferred external dose-model study because its prostate dataset contains CT, contours, Eclipse-derived dose-influence data, expert-selected beams, and ECHO IMRT and VMAT reference plans. MAISI is reserved for later CT-density or visual-realism work because the current water-equivalent dose calculation does not use CT Hounsfield units.
 
 The completed five-seed development run used 24 training cases and 60 validation cases. Run the combined analysis and the action-sequence audit with:
 

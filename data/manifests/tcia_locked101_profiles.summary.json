@@ -1,0 +1,19 @@
+{
+  "status": "locked",
+  "patients": 101,
+  "development_patients_excluded": 15,
+  "profile_counts": {
+    "balanced_reference": 10,
+    "oar_guarded": 21,
+    "hotspot_stress": 35,
+    "conformity_stress": 35
+  },
+  "anatomy_strata": {
+    "margin_only": 31,
+    "interface_overlap": 70
+  },
+  "manifest_sha256": "7dc86d32fb94680aeac8e5e8438fb22f4a74355f2b61c11e7c722535647843ec",
+  "metrics_csv": "outputs/tcia_prostate_anatomy_full_20260810_205652/tcia_anatomy_metrics.csv",
+  "development_subject_file": "data/manifests/tcia_development15.txt",
+  "output_csv": "data/manifests/tcia_locked101_profiles.csv"
+}

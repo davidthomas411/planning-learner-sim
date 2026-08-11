@@ -143,7 +143,9 @@ def save_channel_montage(
 
     data = volume.detach().float().cpu().numpy()
     axial_index = int(np.argmax(data[1].sum(axis=(0, 1))))
-    figure, axes = plt.subplots(3, 4, figsize=(12, 9), constrained_layout=True)
+    columns = 4
+    rows = int(np.ceil(len(channel_names) / columns))
+    figure, axes = plt.subplots(rows, columns, figsize=(12, 3 * rows), constrained_layout=True)
     for index, axis in enumerate(axes.flat):
         if index >= len(channel_names):
             axis.axis("off")
@@ -178,6 +180,13 @@ def save_review_plan(
     ):
         image = axis.imshow(dose[:, :, axial_index].T, origin="lower", cmap="turbo", vmin=0.0, vmax=maximum)
         axis.contour(case.target[:, :, axial_index].T, levels=[0.5], colors=["white"], linewidths=1.5)
+        if case.clinical_target is not None:
+            axis.contour(
+                case.clinical_target[:, :, axial_index].T,
+                levels=[0.5],
+                colors=["#ff66cc"],
+                linewidths=1.0,
+            )
         for color, oar in zip(("cyan", "lime", "magenta"), case.oars, strict=True):
             axis.contour(oar[:, :, axial_index].T, levels=[0.5], colors=[color], linewidths=1.0)
         axis.set_title(title)
@@ -296,10 +305,21 @@ def replay_training_tensors(
             normal_tissue_threshold=rollout_config.normal_tissue_threshold,
             integral_dose_weight=rollout_config.integral_dose_weight,
             clinical_dvh_weight=rollout_config.clinical_dvh_weight,
+            target_hotspot_threshold=rollout_config.target_hotspot_threshold,
+            target_hotspot_weight=rollout_config.target_hotspot_weight,
+            high_dose_normal_tissue_weight=rollout_config.high_dose_normal_tissue_weight,
+            high_dose_normal_tissue_threshold=rollout_config.high_dose_normal_tissue_threshold,
+            target_normalization_d98=rollout_config.target_normalization_d98,
+            target_normalization_d50=rollout_config.target_normalization_d50,
+            target_normalization_interval=rollout_config.target_normalization_interval,
             prostate_protocol_tier=rollout_config.prostate_protocol_tier,
             d95_min=rollout_config.d95_min,
+            d98_min=rollout_config.d98_min,
+            d50_min=rollout_config.d50_min,
+            d50_max=rollout_config.d50_max,
             d02_max=rollout_config.d02_max,
             paddick_ci_95_min=rollout_config.paddick_ci_95_min,
+            covering_isodose_ratio_95_max=rollout_config.covering_isodose_ratio_95_max,
             r50_max=rollout_config.r50_max,
             minimum_field_count=rollout_config.minimum_field_count,
         )
@@ -632,14 +652,31 @@ def main() -> None:
     parser.add_argument("--normal-tissue-threshold", type=float, default=0.5)
     parser.add_argument("--integral-dose-weight", type=float, default=0.0)
     parser.add_argument("--clinical-dvh-weight", type=float, default=0.0)
+    parser.add_argument("--target-hotspot-threshold", type=float, default=1.10)
+    parser.add_argument("--target-hotspot-weight", type=float, default=5.0)
+    parser.add_argument("--high-dose-normal-tissue-weight", type=float, default=0.0)
+    parser.add_argument("--high-dose-normal-tissue-threshold", type=float, default=0.95)
+    parser.add_argument("--target-normalization-d98", type=float)
+    parser.add_argument("--target-normalization-d50", type=float)
+    parser.add_argument("--target-normalization-interval", type=int, default=0)
     parser.add_argument(
         "--prostate-protocol-tier",
-        choices=("off", "per_protocol", "variation_acceptable"),
+        choices=(
+            "off",
+            "per_protocol",
+            "variation_acceptable",
+            "oar_per_protocol",
+            "oar_variation_acceptable",
+        ),
         default="off",
     )
     parser.add_argument("--d95-min", type=float, default=0.85)
+    parser.add_argument("--d98-min", type=float, default=0.0)
+    parser.add_argument("--d50-min", type=float, default=0.0)
+    parser.add_argument("--d50-max", type=float, default=float("inf"))
     parser.add_argument("--d02-max", type=float, default=1.25)
     parser.add_argument("--paddick-ci-95-min", type=float, default=0.0)
+    parser.add_argument("--covering-isodose-ratio-95-max", type=float, default=float("inf"))
     parser.add_argument("--r50-max", type=float, default=float("inf"))
     parser.add_argument("--minimum-field-count", type=int, default=0)
     parser.add_argument("--device", default="cuda:0")
@@ -675,10 +712,21 @@ def main() -> None:
         normal_tissue_threshold=args.normal_tissue_threshold,
         integral_dose_weight=args.integral_dose_weight,
         clinical_dvh_weight=args.clinical_dvh_weight,
+        target_hotspot_threshold=args.target_hotspot_threshold,
+        target_hotspot_weight=args.target_hotspot_weight,
+        high_dose_normal_tissue_weight=args.high_dose_normal_tissue_weight,
+        high_dose_normal_tissue_threshold=args.high_dose_normal_tissue_threshold,
+        target_normalization_d98=args.target_normalization_d98,
+        target_normalization_d50=args.target_normalization_d50,
+        target_normalization_interval=args.target_normalization_interval,
         prostate_protocol_tier=args.prostate_protocol_tier,
         d95_min=args.d95_min,
+        d98_min=args.d98_min,
+        d50_min=args.d50_min,
+        d50_max=args.d50_max,
         d02_max=args.d02_max,
         paddick_ci_95_min=args.paddick_ci_95_min,
+        covering_isodose_ratio_95_max=args.covering_isodose_ratio_95_max,
         r50_max=args.r50_max,
         minimum_field_count=args.minimum_field_count,
     )
@@ -709,7 +757,8 @@ def main() -> None:
     if args.anatomy == "prostate":
         channel_names = (
             "body", "prostate_ptv", "bladder", "rectum", "femoral_heads", "dose",
-            "target_underdose", "target_hotspot", "bladder_excess", "rectum_excess", "femoral_head_excess",
+            "target_underdose", "target_hotspot", "normal_tissue_high_dose",
+            "bladder_excess", "rectum_excess", "femoral_head_excess",
         )
     save_channel_montage(
         training_tensors[1][0], args.output_dir / "00_model_input_channels.png", channel_names

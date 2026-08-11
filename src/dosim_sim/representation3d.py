@@ -18,12 +18,14 @@ except ImportError:  # pragma: no cover - the GPU dependency is optional
 VOLUME_CHANNEL_NAMES = (
     "body",
     "target",
+    "clinical_target",
     "oar_0",
     "oar_1",
     "oar_2",
     "dose",
     "target_underdose",
     "target_hotspot",
+    "normal_tissue_high_dose",
     "oar_0_excess",
     "oar_1_excess",
     "oar_2_excess",
@@ -54,12 +56,23 @@ def state_volume_3d(
 
     body = mask_tensor(case.body)
     target = mask_tensor(case.target)
+    clinical_target = (
+        torch.zeros_like(body)
+        if case.clinical_target is None
+        else mask_tensor(case.clinical_target)
+    )
     oars = [mask_tensor(mask) for mask in case.oars]
     while len(oars) < 3:
         oars.append(torch.zeros_like(body))
     dose_channel = torch.clamp(dose / 1.5, 0.0, 1.5)
     target_underdose = target * torch.clamp((config.d95_min - dose) / config.d95_min, 0.0, 1.0)
     target_hotspot = target * torch.clamp((dose - config.d02_max) / config.d02_max, 0.0, 1.0)
+    normal_tissue_high_dose = (body - target).clamp(min=0.0) * torch.clamp(
+        (dose - config.high_dose_normal_tissue_threshold)
+        / max(config.high_dose_normal_tissue_threshold, 1e-8),
+        0.0,
+        1.0,
+    )
     oar_excess = []
     for index, oar in enumerate(oars):
         if index < len(case.oar_limits):
@@ -67,7 +80,17 @@ def state_volume_3d(
         else:
             oar_excess.append(torch.zeros_like(body))
     volume = torch.stack(
-        [body, target, *oars, dose_channel, target_underdose, target_hotspot, *oar_excess]
+        [
+            body,
+            target,
+            clinical_target,
+            *oars,
+            dose_channel,
+            target_underdose,
+            target_hotspot,
+            normal_tissue_high_dose,
+            *oar_excess,
+        ]
     )
     if output_size is not None and tuple(volume.shape[1:]) != (output_size,) * 3:
         volume = functional.interpolate(

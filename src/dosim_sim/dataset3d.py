@@ -99,7 +99,14 @@ def state_features_3d(
     dynamic = np.array(
         [
             step.plan.metrics.target_d95,
+            step.plan.metrics.target_d98,
+            step.plan.metrics.target_d99,
+            step.plan.metrics.target_d50,
             step.plan.metrics.target_d02,
+            step.plan.metrics.target_v100,
+            step.plan.metrics.covering_isodose_ratio_95,
+            step.plan.metrics.outside_target_ratio_95,
+            step.plan.metrics.outside_target_prescription_ratio,
             *oar_ratios,
             step.plan.priorities.target / 25.0,
             step.plan.priorities.hotspot / 25.0,
