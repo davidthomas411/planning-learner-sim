@@ -1996,10 +1996,25 @@ def main() -> None:
         missing_dirs = [str(path) for path in subject_dirs if not path.is_dir()]
         if missing_dirs:
             raise ValueError(f"TCIA subject directories are missing: {missing_dirs}")
-        selected_cases = [
-            load_tcia_prostate_case(path, args.grid_size)
-            for path in subject_dirs
-        ]
+        anatomy_started = time.perf_counter()
+        write_progress(
+            output_dir,
+            0,
+            requested_cases,
+            anatomy_started,
+            unit="TCIA anatomies loaded",
+        )
+        selected_cases = []
+        for index, path in enumerate(subject_dirs, start=1):
+            selected_cases.append(load_tcia_prostate_case(path, args.grid_size))
+            write_progress(
+                output_dir,
+                index,
+                requested_cases,
+                anatomy_started,
+                last_case=path.name,
+                unit="TCIA anatomies loaded",
+            )
         records = []
         for index, (case, path) in enumerate(
             zip(selected_cases, subject_dirs, strict=True)
