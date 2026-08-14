@@ -69,7 +69,7 @@ def main() -> None:
     )
     parser.add_argument("--minimum-rectum-ptv-overlap-fraction", type=float, default=0.025)
     parser.add_argument("--maximum-ptv-overlap-fraction", type=float, default=0.20)
-    parser.add_argument("--max-steps", type=int, default=8)
+    parser.add_argument("--max-steps", type=int, default=32)
     parser.add_argument("--grid-size", type=int, default=64)
     parser.add_argument("--fluence-size", type=int, default=64)
     parser.add_argument("--iterations", type=int, default=1000)
@@ -82,6 +82,7 @@ def main() -> None:
         choices=("static_7", "static_9", "static_12", "arc_like_360"),
         default="static_7",
     )
+    parser.add_argument("--field-template-escalation", action="store_true")
     parser.add_argument("--initial-target-priority", type=float, default=1.0)
     parser.add_argument("--initial-hotspot-priority", type=float, default=1.0)
     parser.add_argument("--initial-oar-priority", type=float, default=1.0)
@@ -230,6 +231,8 @@ def main() -> None:
                 )
             if args.starting_profiles:
                 run_arguments.extend(["--starting-profiles", *args.starting_profiles])
+            if args.field_template_escalation:
+                run_arguments.append("--field-template-escalation")
         elif args.pilot == "target_priority":
             run_arguments = [
                 sys.executable,

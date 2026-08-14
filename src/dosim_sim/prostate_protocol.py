@@ -128,7 +128,9 @@ def clinical_objective_set_record() -> dict[str, object]:
             ),
             "simultaneous_target_and_oar_variation": "requires physician review",
             "clinical_target": "Prostate V60Gy >=99% remains required",
-            "ptv_hotspot": "PTV D1cc <=63Gy remains required",
+            "ptv_hotspot": (
+                "PTV D1cc <=63Gy is a hard limit; no acceptable variation is allowed"
+            ),
             "source_info": (
                 "PERYTON 60 Gy in 20 fractions acceptable-variation rules; "
                 "PACE limited PTV undercoverage at rectal overlap"
@@ -164,6 +166,7 @@ class ProstateProtocolEvaluation:
     target_d99_gy: float
     target_d02_gy: float
     target_d1cc_gy: float
+    target_dmin_gy: float
     target_v57_percent: float
     prostate_v60_percent: float
     target_per_protocol: bool
@@ -331,6 +334,7 @@ def evaluate_prostate_60gy20fx(
     d99 = float(np.percentile(target_values, 1)) * PRESCRIPTION_GY
     d02 = float(np.percentile(target_values, 98)) * PRESCRIPTION_GY
     d1cc = dose_to_hottest_volume_gy(target_values, case.voxel_volume_cc)
+    dmin = float(np.min(target_values)) * PRESCRIPTION_GY
     target_v57 = volume_at_least_percent(target_values, 0.95)
     prostate_v60 = volume_at_least_percent(prostate_values, 1.0)
     results = tuple(
@@ -347,6 +351,7 @@ def evaluate_prostate_60gy20fx(
         target_d99_gy=d99,
         target_d02_gy=d02,
         target_d1cc_gy=d1cc,
+        target_dmin_gy=dmin,
         target_v57_percent=target_v57,
         prostate_v60_percent=prostate_v60,
         target_per_protocol=(
@@ -403,9 +408,10 @@ def protocol_summary_rows(evaluation: ProstateProtocolEvaluation) -> list[dict[s
             "observed": evaluation.target_d1cc_gy,
             "unit": "Gy",
             "per_protocol_goal": "<=63.0",
-            "variation_goal": "<=63.0",
+            "variation_goal": "hard limit <=63.0",
             "per_protocol": evaluation.target_d1cc_gy <= 63.0,
             "variation_acceptable": evaluation.target_d1cc_gy <= 63.0,
+            "hard_limit": True,
         },
     ]
     rows.extend(

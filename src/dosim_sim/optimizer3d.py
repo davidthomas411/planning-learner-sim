@@ -99,6 +99,7 @@ def ptv_minus_oars_optimization_target_3d(
 @dataclass(frozen=True)
 class PlanMetrics3D:
     loss: float
+    target_dmin: float
     target_d95: float
     target_d98: float
     target_d99: float
@@ -382,6 +383,7 @@ def evaluate_plan_3d(
     )
     return PlanMetrics3D(
         loss=float(loss),
+        target_dmin=float(np.min(target_values)),
         target_d95=float(np.percentile(target_values, 5)),
         target_d98=float(np.percentile(target_values, 2)),
         target_d99=float(np.percentile(target_values, 1)),

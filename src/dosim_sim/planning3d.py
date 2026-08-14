@@ -25,6 +25,7 @@ class HighLevelSearchConfig3D:
     d95_min: float = 0.85
     d98_min: float = 0.0
     d99_min: float = 0.0
+    dmin_min: float = 0.0
     d50_min: float = 0.0
     d50_max: float = float("inf")
     d02_max: float = 1.25
@@ -190,6 +191,7 @@ def is_acceptable_3d(
         if np.isfinite(cfg.d1cc_max)
         else True
     )
+    dmin_ok = cfg.dmin_min <= 0.0 or metrics.target_dmin > cfg.dmin_min
     clinical_v100_ok = (
         metrics.clinical_target_v100 is not None
         and metrics.clinical_target_v100 + ratio_tolerance
@@ -201,6 +203,7 @@ def is_acceptable_3d(
         coverage_d95 + dose_tolerance >= cfg.d95_min
         and coverage_d98 + dose_tolerance >= cfg.d98_min
         and metrics.target_d99 + dose_tolerance >= cfg.d99_min
+        and dmin_ok
         and clinical_target_ok
         and relaxed_overlap_ok
         and d1cc_ok
@@ -228,6 +231,11 @@ def clinical_violation_score_3d(
     coverage = max(cfg.d95_min - active_d95, 0.0) / max(cfg.d95_min, 1e-8)
     coverage_d98 = max(cfg.d98_min - active_d98, 0.0) / max(cfg.d98_min, 1e-8)
     coverage_d99 = max(cfg.d99_min - metrics.target_d99, 0.0) / max(cfg.d99_min, 1e-8)
+    coverage_dmin = (
+        max(cfg.dmin_min - metrics.target_dmin, 0.0) / cfg.dmin_min
+        if cfg.dmin_min > 0.0
+        else 0.0
+    )
     clinical_target = (
         max(cfg.d98_min - metrics.clinical_target_d98, 0.0) / max(cfg.d98_min, 1e-8)
         if cfg.overlap_floor_is_acceptance
@@ -306,6 +314,7 @@ def clinical_violation_score_3d(
         coverage
         + coverage_d98
         + coverage_d99
+        + coverage_dmin
         + clinical_target
         + relaxed_overlap
         + d1cc

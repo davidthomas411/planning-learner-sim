@@ -25,9 +25,9 @@ All valid `margin_only` cases will be selected first. The remaining places will 
 
 ### Planning method
 
-Each patient will start with seven fixed coplanar fields. Each field will have a 64 by 64 fluence map. The inner optimizer will use 1000 iterations after each high-level change. The outer process can create a PTV-minus-bladder or PTV-minus-rectum optimization target and can change only target, hot-spot, named-OAR, or normal-tissue priority. The limit is eight high-level changes.
+Each patient will start with seven fixed coplanar fields. Each field will have a 64 by 64 fluence map. The inner optimizer will use 1000 iterations after each high-level change. The outer process can create a PTV-minus-bladder or PTV-minus-rectum optimization target and can change target, hot-spot, named-OAR, or normal-tissue priority. If a hard failure remains, one recorded manual action can replace the failed plan with the prespecified nine-field template. A second unresolved hard failure can trigger the prespecified 12-field template. The starting objectives are reapplied after a beam-template change. The method does not search beam candidates. A 32-change safety cap applies to the combined trajectory. Clinical and action-response rules normally stop the sequence earlier.
 
-The prescription is 60 Gy in 20 fractions. The institutional objectives remain the per-protocol goals. A trial-informed acceptable-variation policy is fixed before the locked evaluation. PTV V57 Gy can decrease from at least 99% to at least 95% only when all institutional OAR limits pass. Rectum or bladder volume can exceed an institutional volume limit by no more than 5 percentage points only when standard target coverage passes. Prostate V60 Gy at least 99%, PTV D1cc at most 63 Gy, femoral-head limits, and conformity remain fixed. Simultaneous target and OAR variation is not accepted automatically and requires physician review. Per-protocol and acceptable-variation plans are reported separately.
+The prescription is 60 Gy in 20 fractions. The institutional objectives remain the per-protocol goals. Automatic stopping requires PTV V57 Gy of at least 98%. When an OAR is at or above its institutional limit, PTV V57 Gy can decrease to at least 95% but less than 98% for physician review. PTV minimum dose must remain greater than 54 Gy. Rectum or bladder volume can exceed an institutional volume limit by no more than 5 percentage points only when standard target coverage passes. Prostate V60 Gy at least 99%, PTV D1cc at most 63 Gy, femoral-head limits, and conformity remain fixed. Simultaneous target and OAR variation is not accepted automatically and requires physician review. Per-protocol, acceptable-variation, physician-review, and planning-failure results are reported separately.
 
 ### Outputs
 
@@ -42,7 +42,7 @@ The pilot will save the following data:
 - results for each anatomy stratum;
 - a live local status page with current figures.
 
-The 15-patient set is for method development. The remaining 101 patients are not a training cohort and will be evaluated once after the planning policy is frozen.
+The 15-patient set was used for initial method development. The remaining 101 patients were used for a first fixed-profile planning run. Expert review of the ten nonautomatic results changed the planning rules. Therefore, that run is a methods audit and no longer qualifies as an independent final evaluation.
 
 ### Short plan review
 
@@ -55,7 +55,7 @@ The numerical acceptance test will review every plan. A structured secondary rev
 5. bladder, rectum, and femoral-head DVHs meet the declared limits; and
 6. each recorded high-level action is a reasonable response to the preceding plan.
 
-The terminal disposition will be `per protocol`, `acceptable target variation`, `acceptable OAR variation`, `requires physician review`, or `technical failure`. Planning failures will also be classified as correctable, major anatomical conflict, action nonresponse, or action-budget exhaustion. The automated review is an engineering quality-control method. It is not a clinical plan approval or a substitute for a licensed dosimetrist or medical physicist. A publishable study should include blinded review of a prespecified sample by a qualified human reviewer.
+The terminal disposition will be `per protocol`, `acceptable target variation`, `acceptable OAR variation`, `requires physician review`, `planning failure`, or `technical failure`. Planning failures will also be classified as unresolved hotspot, unresolved target minimum, unresolved target coverage, action nonresponse, or safety-cap exhaustion. The automated review is an engineering quality-control method. It is not a clinical plan approval or a substitute for a licensed dosimetrist or medical physicist. A publishable study should include blinded review of a prespecified sample by a qualified human reviewer.
 
 ### Progression gate
 
@@ -63,7 +63,7 @@ The current balanced template accepted 14 of 15 plans under the exact institutio
 
 Before scale-up, four fixed starting templates will be tested on the 15 development patients: balanced reference, guarded OAR stress, hotspot stress, and conformity stress. These are starting conditions, not optimizer-selected candidates. The balanced profile provides required stop examples. Each stress profile starts with target priority 3.0. The OAR, hotspot, and normal-tissue priorities are 0.10, 0.04, and 0.02. If a related clinical metric fails, the reviewer increases the active priority by a factor of 3.0. A target-underweighted profile was tested and rejected because prostate D99 normalization preserved target coverage while creating a hot spot and a conformity failure; it did not isolate the intended target-priority decision. The four retained templates produce 60 development episodes but only 15 independent patients.
 
-The response to each action is measured. The fixed material-response thresholds are 1 percentage point for PTV V57 Gy, 0.3 Gy for PTV D1cc, 1 percentage point or 10% of the current excess for an OAR volume metric, and 0.01 for the 57 Gy covering-isodose ratio. After two consecutive nonresponsive actions of the same class, the reviewer must change strategy or require physician review. Repeated nonresponsive actions remain negative calibration records and are not expert demonstration labels.
+The response to each action is measured. The fixed material-response thresholds are 1 percentage point for PTV V57 Gy or prostate V60 Gy, 0.3 Gy for PTV minimum dose or PTV D1cc, 1 percentage point or 10% of the current excess for an OAR volume metric, and 0.01 for the 57 Gy covering-isodose ratio. After two consecutive nonresponsive actions of the same class, the reviewer must change strategy or require physician review. A hard target or hotspot failure can continue to the permitted priority ceiling. Repeated nonresponsive actions remain negative calibration records and are not expert demonstration labels.
 
 Progression requires initial acceptance in at least 90% of balanced-control plans, an initial failure rate of 40% to 80% among stress-profile plans, final per-protocol or acceptable-variation status in at least 90% of all development episodes, a median of one to four manual actions among corrected plans, and more than one represented action class. Initial development states must also avoid gross errors: PTV D1cc must not exceed 70 Gy, the 57 Gy covering-isodose ratio must not exceed 1.25, the worst OAR objective ratio must not exceed 1.50, and PTV V57 Gy must remain at least 90%. These are development-severity bounds, not treatment-plan acceptance criteria. Failed episodes remain in the audit record.
 
@@ -72,6 +72,10 @@ The first complete 60-episode calibration failed this progression gate. Its init
 The final guarded-profile calibration passed every progression gate. Balanced-control initial acceptance was 93.3%, stress-profile initial failure was 46.7%, and final automatic acceptance was 91.7%. Median action count among corrected plans was one. All initial severity limits passed. Fifty-five of 60 episodes are eligible expert demonstrations; five physician-review episodes remain in the audit data without expert action labels.
 
 The 101-patient TCIA assignment is now frozen in `data/manifests/tcia_locked101_profiles.csv`. It assigns one profile per patient before dose calculation: 10 balanced control, 21 guarded OAR, 35 hotspot stress, and 35 conformity stress. The allocation is proportional within 31 margin-only and 70 interface-overlap cases. Within each stratum, assignments are spread across ranked maximum PTV-OAR overlap. The manifest SHA-256 digest is `7dc86d32fb94680aeac8e5e8438fb22f4a74355f2b61c11e7c722535647843ec`. This distribution supplies stop examples without allowing the balanced control to dominate the planning-decision set. Patient identity remains the independent unit. No validation dose has been calculated at the time of manifest freeze.
+
+The fixed-profile run later completed in 3544.8 seconds. Ninety-one of 101 plans reached the former automatic acceptance rule. All 31 margin-only plans and 60 of 70 interface-overlap plans were accepted. Expert review of the ten nonautomatic plans identified eight correctable replanning failures and two target-bladder trade-offs. The review changed the overlap minimum dose, stopping order, hard-failure handling, action cap, and priority ceiling. These changes convert the run from a locked evaluation to a methods audit. A final clinical-anatomy performance estimate requires a new independent cohort or a prospectively locked external dataset.
+
+An integrated replan of these ten reviewed cases tested the corrected decision rules. Three plans reached an acceptable OAR variation, six required physician review for a target-OAR boundary, and one remained below the minimum PTV coverage floor. Three unresolved seven-field hotspots were corrected by the fixed nine- or 12-field templates. All terminal PTV D1cc values were below 63 Gy. These results support the fixed field-template action as a methods component, but they do not replace an independent evaluation.
 
 ## Stage 2: PortPy prostate external planning study
 
@@ -134,7 +138,7 @@ The 101-patient TCIA evaluation can estimate a 90% acceptance rate with an appro
 
 ## Compute and storage plan
 
-The final 60-episode development run completed in 2168.8 seconds on the local RTX 4060. This is 36.1 seconds per episode, including the required manual reoptimizations. At the same observed rate, the locked 101-patient run should take about 61 minutes after the anatomy cache is complete. A practical reservation is 1 to 1.5 hours. The full anatomy import can take longer on its first pass because it must decode DICOM files.
+The first fixed-profile 101-patient run completed in 3544.8 seconds on the local RTX 4060, or 35.1 seconds per planning episode. The revised hard-failure rules can require more manual steps in difficult cases. A practical local reservation for a comparable 101-case methods run is 1–2 hours after the anatomy cache is complete. The full anatomy import can take longer on its first pass because it must decode DICOM files.
 
 The four A100 GPUs should be used for the 2,000-case and 10,000-case stages. Patient shards can run independently on the four GPUs. Each shard must use a distinct output folder and a fixed subject list. A merge step will reject duplicate patient and trajectory identifiers.
 

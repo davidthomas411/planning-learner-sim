@@ -1,0 +1,2 @@
+assignment_order,patient_id,case_id,anatomy_stratum,stratum_overlap_rank,stratum_size,maximum_ptv_oar_overlap_fraction,starting_profile,assignment_rule
+66,Prostate-AEC-091,tcia-Prostate-AEC-091,interface_overlap,56,70,0.15764705882352942,balanced_reference,target_oar_boundary_replan

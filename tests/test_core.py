@@ -443,6 +443,22 @@ def test_trial_variation_accepts_one_target_or_oar_variation_but_not_both() -> N
     assert combined_evaluation.acceptance_class == "major_variation"
 
 
+def test_ptv_d1cc_hotspot_is_not_an_acceptable_variation() -> None:
+    case = generate_prostate_case_3d(183, grid_size=32, difficulty="easy")
+    dose = np.zeros(case.body.shape, dtype=np.float32)
+    dose[case.target] = 1.0
+    hottest_voxels = int(np.ceil(1.0 / float(case.voxel_volume_cc)))
+    for index in np.argwhere(case.target)[:hottest_voxels]:
+        dose[tuple(index)] = 1.06
+
+    evaluation = evaluate_prostate_60gy20fx(case, dose)
+    assert evaluation.target_d1cc_gy > 63.0
+    assert not evaluation.target_per_protocol
+    assert not evaluation.target_variation_acceptable
+    assert not evaluation.variation_acceptable
+    assert evaluation.acceptance_class == "major_variation"
+
+
 def test_anatomical_conflict_detects_unavoidable_oar_volume() -> None:
     case = generate_prostate_case_3d(181, grid_size=32, difficulty="easy")
     bladder = case.target.copy()

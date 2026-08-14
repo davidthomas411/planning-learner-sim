@@ -3,7 +3,11 @@ from types import SimpleNamespace
 import csv
 import torch
 
+from dosim_sim.delivery3d import delivery_mode_3d
 from dosim_sim.manual_planning import ManualAction
+from dosim_sim.objective import PlanningPriorities
+from dosim_sim.optimizer3d import full_optimization_target_3d
+from dosim_sim.planning3d import PlanningStep3D, PlanningTrajectory3D
 from dosim_sim.volume3d import generate_prostate_case_3d
 from scripts.build_tcia_locked_profile_manifest import (
     PROFILE_QUOTAS,
@@ -12,10 +16,15 @@ from scripts.build_tcia_locked_profile_manifest import (
 from scripts.run_prostate_ptv_manual_pilot import (
     ActionResponse,
     CLINICAL_CONFIG,
+    append_delivery_replan,
+    at_target_oar_tradeoff_boundary,
+    field_template_escalation_allowed,
     increased_priority,
     load_tcia_episode_manifest,
     repeated_unproductive_steps,
+    select_manual_action,
     starting_priorities,
+    unresolved_hard_failure_reason,
 )
 
 
@@ -135,3 +144,135 @@ def test_tcia_episode_manifest_rejects_duplicate_patients(tmp_path) -> None:
         assert "one row per patient" in str(error)
     else:
         raise AssertionError("A duplicate patient was accepted")
+
+
+def test_expert_review_configuration_has_a_nonzero_ptv_floor_and_safety_cap() -> None:
+    assert CLINICAL_CONFIG.ptv_oar_overlap_minimum == 0.90
+    assert CLINICAL_CONFIG.dmin_min == 0.90
+    assert CLINICAL_CONFIG.max_steps == 32
+    assert CLINICAL_CONFIG.priority_ceiling == 22.78125
+
+
+def test_field_template_escalation_is_limited_to_unresolved_hard_failures() -> None:
+    assert field_template_escalation_allowed(
+        "technical_planning_failure_unresolved_hotspot"
+    )
+    assert field_template_escalation_allowed(
+        "technical_planning_failure_unresolved_ptv_coverage"
+    )
+    assert not field_template_escalation_allowed(
+        "requires_physician_review_target_oar_boundary"
+    )
+    assert not field_template_escalation_allowed("technical_failure_invalid_dose")
+
+
+def test_field_template_replan_is_one_recorded_manual_action() -> None:
+    plan_7 = SimpleNamespace(active_beams=tuple(range(7)))
+    plan_9 = SimpleNamespace(active_beams=tuple(range(9)))
+    first = PlanningTrajectory3D(
+        "case",
+        (
+            PlanningStep3D(0, None, plan_7, 1.0),
+            PlanningStep3D(
+                1,
+                ManualAction("increase_hotspot_priority", "Increase hotspot"),
+                plan_7,
+                0.8,
+            ),
+        ),
+        "technical_planning_failure_unresolved_hotspot",
+    )
+    second = PlanningTrajectory3D(
+        "case",
+        (PlanningStep3D(0, None, plan_9, 0.4),),
+        "requires_physician_review_target_oar_boundary",
+    )
+
+    combined = append_delivery_replan(
+        first,
+        second,
+        delivery_mode_3d("static_7"),
+        delivery_mode_3d("static_9"),
+    )
+
+    assert [step.step for step in combined.steps] == [0, 1, 2]
+    assert combined.steps[2].action is not None
+    assert combined.steps[2].action.kind == "replace_delivery_template"
+    assert combined.steps[2].action.old_value == 7.0
+    assert combined.steps[2].action.new_value == 9.0
+    assert combined.stopping_reason == "requires_physician_review_target_oar_boundary"
+
+
+def test_ptv_minimum_and_hotspot_failures_are_not_physician_tradeoffs() -> None:
+    case = generate_prostate_case_3d(903, grid_size=24, difficulty="hard")
+    cold_dose = torch.zeros(case.body.shape, dtype=torch.float32)
+    cold_dose[torch.from_numpy(case.target)] = 1.0
+    margin_indices = torch.nonzero(
+        torch.from_numpy(case.target & ~case.clinical_target),
+        as_tuple=False,
+    )
+    cold_dose[tuple(margin_indices[0])] = 0.89
+    cold_plan = SimpleNamespace(dose=cold_dose)
+    assert unresolved_hard_failure_reason(case, cold_plan) == (
+        "technical_planning_failure_unresolved_target_minimum"
+    )
+
+    hot_dose = torch.zeros(case.body.shape, dtype=torch.float32)
+    hot_dose[torch.from_numpy(case.target)] = 1.10
+    hot_plan = SimpleNamespace(dose=hot_dose)
+    assert unresolved_hard_failure_reason(case, hot_plan) == (
+        "technical_planning_failure_unresolved_hotspot"
+    )
+
+
+def test_hard_hotspot_cannot_enter_physician_review(monkeypatch) -> None:
+    plan = SimpleNamespace(
+        dose=None,
+        metrics=SimpleNamespace(covering_isodose_ratio_95=1.0),
+        optimization_target=SimpleNamespace(cropped_oar_indices=(0,)),
+    )
+    monkeypatch.setattr(
+        "scripts.run_prostate_ptv_manual_pilot.clinical_constraint_record",
+        lambda _case, _dose: {
+            "prostate_v60gy_pass": True,
+            "ptv_d1cc_pass": False,
+            "ptv_dmin_expert_floor_pass": True,
+            "ptv_v57gy_percent": 96.0,
+        },
+    )
+    monkeypatch.setattr(
+        "scripts.run_prostate_ptv_manual_pilot.worst_oar_ratio",
+        lambda _metrics, _config: (0, 1.2),
+    )
+
+    assert not at_target_oar_tradeoff_boundary(None, plan, CLINICAL_CONFIG)
+
+
+def test_failed_bladder_goal_creates_split_target_before_weight_changes() -> None:
+    case = generate_prostate_case_3d(904, grid_size=24, difficulty="hard")
+    assert case.structure_names[0] == "bladder"
+    assert bool((case.target & case.oars[0] & ~case.clinical_target).any())
+    metrics = SimpleNamespace(
+        target_d99=1.0,
+        target_dmin=1.0,
+        clinical_target_v100=1.0,
+        target_d50=1.0,
+        target_d1cc=1.04,
+        target_v95=1.0,
+        protocol_oar_per_protocol_ratios=(1.20, 0.50, 0.10),
+        covering_isodose_ratio_95=1.0,
+    )
+    plan = SimpleNamespace(
+        metrics=metrics,
+        priorities=PlanningPriorities.for_case(case),
+        optimization_target=full_optimization_target_3d(case),
+    )
+
+    action, priorities, target = select_manual_action(case, plan, CLINICAL_CONFIG)
+
+    assert action is not None
+    assert action.kind == "create_ptv_minus_bladder"
+    assert priorities == plan.priorities
+    assert target is not None
+    assert target.cropped_oar_indices == (0,)
+    assert target.relaxed_overlap_minimum == 0.90

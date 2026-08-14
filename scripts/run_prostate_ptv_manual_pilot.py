@@ -20,7 +20,7 @@ import torch
 from matplotlib.colors import ListedColormap
 
 from dosim_sim.clinical3d import load_tcia_prostate_case
-from dosim_sim.delivery3d import delivery_mode_3d
+from dosim_sim.delivery3d import DeliveryMode3D, delivery_mode_3d
 from dosim_sim.manual_planning import ManualAction
 from dosim_sim.objective import PlanningPriorities
 from dosim_sim.planning3d import (
@@ -114,6 +114,61 @@ STARTING_PROFILE_VALUES = {
         "normal_tissue": 0.02,
     },
 }
+
+PREFERRED_PTV_V57_PERCENT = 98.0
+MINIMUM_PTV_V57_PERCENT = 95.0
+TRADEOFF_BOUNDARY_PTV_V57_UPPER_EXCLUSIVE_PERCENT = 98.0
+MINIMUM_PTV_DMIN_GY = 54.0
+PROGRESS_MANUAL_STEP_HORIZON = 8
+FIELD_TEMPLATE_ESCALATION_MODES = ("static_9", "static_12")
+FIELD_TEMPLATE_ESCALATION_REASONS = frozenset(
+    {
+        "technical_planning_failure_unresolved_hotspot",
+        "technical_planning_failure_unresolved_target_minimum",
+        "technical_planning_failure_unresolved_prostate_coverage",
+        "technical_planning_failure_unresolved_ptv_coverage",
+    }
+)
+
+
+def field_template_escalation_allowed(stopping_reason: str) -> bool:
+    """Return true only for unresolved hard planning failures."""
+
+    return stopping_reason in FIELD_TEMPLATE_ESCALATION_REASONS
+
+
+def append_delivery_replan(
+    existing: PlanningTrajectory3D,
+    segment: PlanningTrajectory3D,
+    previous_mode: DeliveryMode3D,
+    new_mode: DeliveryMode3D,
+) -> PlanningTrajectory3D:
+    """Append a fixed beam-template replan as one recorded manual action."""
+
+    bridge_action = ManualAction(
+        "replace_delivery_template",
+        f"Replace the standard {len(previous_mode.angles_degrees)}-field beam template "
+        f"with the standard {len(new_mode.angles_degrees)}-field template. Reapply "
+        "the predefined starting objectives and reoptimize.",
+        old_value=float(len(previous_mode.angles_degrees)),
+        new_value=float(len(new_mode.angles_degrees)),
+    )
+    next_step = existing.final.step + 1
+    appended = []
+    for local_index, step in enumerate(segment.steps):
+        appended.append(
+            PlanningStep3D(
+                step=next_step + local_index,
+                action=bridge_action if local_index == 0 else step.action,
+                plan=step.plan,
+                violation_score=step.violation_score,
+            )
+        )
+    return PlanningTrajectory3D(
+        case_id=existing.case_id,
+        steps=tuple((*existing.steps, *appended)),
+        stopping_reason=segment.stopping_reason,
+    )
 
 
 def load_tcia_episode_manifest(path: Path) -> list[dict[str, str]]:
@@ -291,6 +346,28 @@ def measure_action_response(case, previous_plan, current_plan, action: ManualAct
     previous = clinical_constraint_record(case, previous_plan.dose)
     current = clinical_constraint_record(case, current_plan.dose)
     if action.kind == "increase_target_priority":
+        if not bool(previous["ptv_dmin_expert_floor_pass"]):
+            previous_value = float(previous["ptv_dmin_gy"])
+            current_value = float(current["ptv_dmin_gy"])
+            return ActionResponse(
+                "PTV minimum dose",
+                previous_value,
+                current_value,
+                current_value - previous_value,
+                0.3,
+                "Gy",
+            )
+        if not bool(previous["prostate_v60gy_pass"]):
+            previous_value = float(previous["prostate_v60gy_percent"])
+            current_value = float(current["prostate_v60gy_percent"])
+            return ActionResponse(
+                "Prostate V60 Gy",
+                previous_value,
+                current_value,
+                current_value - previous_value,
+                1.0,
+                "percentage points",
+            )
         previous_value = float(previous["ptv_v57gy_percent"])
         current_value = float(current["ptv_v57gy_percent"])
         return ActionResponse(
@@ -352,6 +429,50 @@ def measure_action_response(case, previous_plan, current_plan, action: ManualAct
             0.01,
             "ratio",
         )
+    if action.kind == "replace_delivery_template":
+        if not bool(previous["ptv_d1cc_pass"]):
+            previous_value = float(previous["ptv_d1cc_gy"])
+            current_value = float(current["ptv_d1cc_gy"])
+            return ActionResponse(
+                "PTV D1cc",
+                previous_value,
+                current_value,
+                previous_value - current_value,
+                0.3,
+                "Gy",
+            )
+        if not bool(previous["ptv_dmin_expert_floor_pass"]):
+            previous_value = float(previous["ptv_dmin_gy"])
+            current_value = float(current["ptv_dmin_gy"])
+            return ActionResponse(
+                "PTV minimum dose",
+                previous_value,
+                current_value,
+                current_value - previous_value,
+                0.3,
+                "Gy",
+            )
+        if float(previous["ptv_v57gy_percent"]) < MINIMUM_PTV_V57_PERCENT:
+            previous_value = float(previous["ptv_v57gy_percent"])
+            current_value = float(current["ptv_v57gy_percent"])
+            return ActionResponse(
+                "PTV V57 Gy",
+                previous_value,
+                current_value,
+                current_value - previous_value,
+                1.0,
+                "percentage points",
+            )
+        previous_value = float(previous_plan.metrics.covering_isodose_ratio_95)
+        current_value = float(current_plan.metrics.covering_isodose_ratio_95)
+        return ActionResponse(
+            "57 Gy covering-isodose ratio",
+            previous_value,
+            current_value,
+            previous_value - current_value,
+            0.01,
+            "ratio",
+        )
     return ActionResponse(action.kind, 0.0, 0.0, 0.0, float("inf"), "")
 
 
@@ -402,6 +523,8 @@ def clinical_constraint_record(case, dose) -> dict[str, float | bool | str]:
         "prostate_v60gy_pass": evaluation.prostate_v60_percent >= 99.0,
         "ptv_d99_gy": evaluation.target_d99_gy,
         "ptv_d99_pass": evaluation.target_d99_gy >= 57.0,
+        "ptv_dmin_gy": evaluation.target_dmin_gy,
+        "ptv_dmin_expert_floor_pass": evaluation.target_dmin_gy > MINIMUM_PTV_DMIN_GY,
         "ptv_v57gy_percent": evaluation.target_v57_percent,
         "ptv_v57gy_per_protocol_pass": evaluation.target_v57_percent >= 99.0,
         "ptv_v57gy_acceptable_variation_pass": evaluation.target_v57_percent >= 95.0,
@@ -414,6 +537,54 @@ def clinical_constraint_record(case, dose) -> dict[str, float | bool | str]:
         record[f"{key}_percent"] = result.observed_volume_percent
         record[f"{key}_pass"] = result.per_protocol
     return record
+
+
+def manual_plan_is_acceptable(case, plan, config) -> bool:
+    """Apply the expert-reviewed target floor to an otherwise accepted plan."""
+
+    if not is_acceptable_3d(plan.metrics, case, config):
+        return False
+    clinical = clinical_constraint_record(case, plan.dose)
+    return bool(clinical["ptv_dmin_expert_floor_pass"]) and (
+        float(clinical["ptv_v57gy_percent"]) >= PREFERRED_PTV_V57_PERCENT
+    )
+
+
+def at_target_oar_tradeoff_boundary(case, plan, config) -> bool:
+    """Return true for a reviewable target-OAR boundary after a split-target plan."""
+
+    optimization_target = plan.optimization_target
+    if optimization_target is None or not optimization_target.cropped_oar_indices:
+        return False
+    clinical = clinical_constraint_record(case, plan.dose)
+    target_coverage = float(clinical["ptv_v57gy_percent"])
+    _, oar_ratio = worst_oar_ratio(plan.metrics, config)
+    return bool(
+        clinical["prostate_v60gy_pass"]
+        and clinical["ptv_d1cc_pass"]
+        and clinical["ptv_dmin_expert_floor_pass"]
+        and MINIMUM_PTV_V57_PERCENT
+        <= target_coverage
+        < TRADEOFF_BOUNDARY_PTV_V57_UPPER_EXCLUSIVE_PERCENT
+        and oar_ratio >= 1.0
+        and plan.metrics.covering_isodose_ratio_95
+        <= config.covering_isodose_ratio_95_max + 1e-6
+    )
+
+
+def unresolved_hard_failure_reason(case, plan) -> str | None:
+    """Identify a plan state that cannot be accepted as a clinical trade-off."""
+
+    clinical = clinical_constraint_record(case, plan.dose)
+    if not bool(clinical["ptv_d1cc_pass"]):
+        return "technical_planning_failure_unresolved_hotspot"
+    if not bool(clinical["ptv_dmin_expert_floor_pass"]):
+        return "technical_planning_failure_unresolved_target_minimum"
+    if not bool(clinical["prostate_v60gy_pass"]):
+        return "technical_planning_failure_unresolved_prostate_coverage"
+    if float(clinical["ptv_v57gy_percent"]) < MINIMUM_PTV_V57_PERCENT:
+        return "technical_planning_failure_unresolved_ptv_coverage"
+    return None
 
 
 def active_anatomical_conflicts(case, dose) -> tuple:
@@ -668,6 +839,17 @@ def select_manual_action(
         target_gaps.append(
             (config.d99_min - metrics.target_d99 - dose_tolerance) / config.d99_min
         )
+    dmin_violation = (
+        (config.dmin_min - metrics.target_dmin + dose_tolerance) / config.dmin_min
+        if config.dmin_min > 0.0
+        else 0.0
+    )
+    target_gaps.append(dmin_violation)
+    prostate_violation = max(
+        (0.99 - float(metrics.clinical_target_v100 or 0.0) - ratio_tolerance) / 0.99,
+        0.0,
+    )
+    target_gaps.append(prostate_violation)
     if config.clinical_target_v100_min > 0.0:
         target_gaps.append(
             (
@@ -686,12 +868,18 @@ def select_manual_action(
             (metrics.target_d50 - config.d50_max - dose_tolerance) / config.d50_max
         )
     target_violation = max(target_gaps)
+    oar_index, oar_ratio = worst_oar_ratio(metrics, config)
+    oar_violation = max(oar_ratio - 1.0, 0.0)
     if config.prostate_protocol_tier == "variation_acceptable":
-        target_goal = (
-            0.95
-            if optimization_target is not None
-            and optimization_target.cropped_oar_indices
-            else 0.99
+        split_target_active = (
+            optimization_target is not None
+            and bool(optimization_target.cropped_oar_indices)
+        )
+        # Preserve at least 98% PTV V57 coverage when the OAR goals pass. A
+        # clinically reviewed target-OAR trade-off may reduce this to 95% only
+        # while an OAR objective remains at or above its limit.
+        target_goal = 0.95 if split_target_active and oar_violation > ratio_tolerance else (
+            0.98 if split_target_active else 0.99
         )
         target_violation = max(
             target_violation,
@@ -713,31 +901,35 @@ def select_manual_action(
             0.0,
         )
     )
-    oar_index, oar_ratio = worst_oar_ratio(metrics, config)
-    oar_violation = max(oar_ratio - 1.0, 0.0)
-
+    absolute_coverage_violation = max(
+        (MINIMUM_PTV_V57_PERCENT / 100.0 - metrics.target_v95)
+        / (MINIMUM_PTV_V57_PERCENT / 100.0),
+        0.0,
+    )
+    hard_target_violation = max(
+        dmin_violation,
+        prostate_violation,
+        absolute_coverage_violation,
+    )
+    hard_candidates = sorted(
+        (
+            (hard_target_violation, "target"),
+            (hotspot_violation, "hotspot"),
+        ),
+        reverse=True,
+    )
+    hard_failure_active = any(
+        value > ratio_tolerance for value, _ in hard_candidates
+    )
     cropped_indices = (
         () if optimization_target is None else optimization_target.cropped_oar_indices
     )
-    oar_variation_ratios = metrics.protocol_oar_variation_ratios
-    oar_variation_ratio = (
-        float(oar_variation_ratios[oar_index])
-        if oar_index < len(oar_variation_ratios)
-        else float("inf")
-    )
-    try_oar_weight_first = (
-        metrics.protocol_target_per_protocol is True
-        and oar_variation_ratio > 1.0 + ratio_tolerance
-        and priorities.oars[oar_index]
-        < min(config.priority_factor**2, config.priority_ceiling) - ratio_tolerance
-        and ("increase_oar_priority", oar_index) not in excluded_action_signatures
-    )
     if (
         config.manual_ptv_oar_crop
+        and not hard_failure_active
         and oar_violation > ratio_tolerance
         and case.structure_names[oar_index] in {"bladder", "rectum"}
         and oar_index not in cropped_indices
-        and not try_oar_weight_first
     ):
         clinical_target = (
             np.zeros_like(case.target, dtype=bool)
@@ -758,7 +950,7 @@ def select_manual_action(
                 f"Create a PTV-minus-{structure_name} optimization target. Keep the "
                 "prostate/CTV in the full-dose target. Permit limited undercoverage "
                 f"in the PTV-{structure_name} overlap while keeping PTV V57 Gy at "
-                "least 95%.",
+                "least 95% and PTV minimum dose above 54 Gy.",
                 structure_index=oar_index,
                 old_value=1.0,
                 new_value=config.ptv_oar_overlap_minimum,
@@ -769,14 +961,17 @@ def select_manual_action(
         metrics.covering_isodose_ratio_95 / config.covering_isodose_ratio_95_max - 1.0,
         0.0,
     )
-    candidates = sorted(
-        (
-            (target_violation, "target"),
-            (hotspot_violation, "hotspot"),
-            (oar_violation, "oar"),
-            (conformity_violation, "normal_tissue"),
-        ),
-        reverse=True,
+    candidates = (
+        hard_candidates
+        if hard_failure_active
+        else sorted(
+            (
+                (target_violation, "target"),
+                (oar_violation, "oar"),
+                (conformity_violation, "normal_tissue"),
+            ),
+            reverse=True,
+        )
     )
     for violation, name in candidates:
         if violation <= ratio_tolerance:
@@ -858,6 +1053,7 @@ def short_review_record(case, plan, config) -> dict[str, str]:
     ratio_tolerance = 1e-6
     prostate_pass = bool(clinical["prostate_v60gy_pass"])
     d99_pass = bool(clinical["ptv_d99_pass"])
+    dmin_pass = bool(clinical["ptv_dmin_expert_floor_pass"])
     d1cc_pass = bool(clinical["ptv_d1cc_pass"])
     conformity_pass = (
         metrics.covering_isodose_ratio_95
@@ -869,16 +1065,18 @@ def short_review_record(case, plan, config) -> dict[str, str]:
         f"({'pass' if prostate_pass else 'fail'}). "
         f"PTV D99 is {float(clinical['ptv_d99_gy']):.2f} Gy "
         f"({'pass' if d99_pass else 'fail'}). "
+        f"PTV minimum dose is {float(clinical['ptv_dmin_gy']):.2f} Gy "
+        f"({'pass' if dmin_pass else 'fail'} for the expert floor of >54 Gy). "
         f"PTV V57 Gy is {float(clinical['ptv_v57gy_percent']):.1f}%. "
         f"PTV D1cc is {float(clinical['ptv_d1cc_gy']):.2f} Gy "
-        f"({'pass' if d1cc_pass else 'fail'}). "
+        f"({'hard-limit pass' if d1cc_pass else 'hard-limit fail'}). "
         f"The 57 Gy covering-isodose ratio is {metrics.covering_isodose_ratio_95:.3f} "
         f"({'pass' if conformity_pass else 'fail'}). "
         f"The worst OAR objective is {str(oar['structure']).replace('_', ' ')} "
         f"{oar['metric']} at {float(oar['observed_percent']):.1f}% with a "
         f"{float(oar['limit_percent']):.1f}% limit ({'pass' if oar_pass else 'fail'})."
     )
-    if is_acceptable_3d(metrics, case, config):
+    if manual_plan_is_acceptable(case, plan, config):
         acceptance_class = str(clinical["protocol_acceptance_class"])
         decision = {
             "per_protocol": "Accept. All institutional objectives pass.",
@@ -896,30 +1094,38 @@ def short_review_record(case, plan, config) -> dict[str, str]:
             "review_decision": decision,
             "recommended_action_type": "stop",
         }
-    conflicts = active_anatomical_conflicts(case, plan.dose)
-    if conflicts:
-        conflict = max(
-            conflicts,
-            key=lambda value: (
-                value.minimum_volume_percent
-                / value.goal.per_protocol_volume_percent
-            ),
-        )
-        structure = conflict.goal.structure.replace("_", " ")
+    if at_target_oar_tradeoff_boundary(case, plan, config):
         return {
             "review_findings": findings,
             "review_decision": (
-                "Do not accept. Stop manual weight changes. Even the allowed target or "
-                "OAR variation cannot resolve this overlap. Target variation forces at "
-                f"least {conflict.minimum_volume_percent:.1f}% of the {structure} above "
-                f"{conflict.goal.dose_gy:g} Gy, but the institutional limit is "
-                f"{conflict.goal.per_protocol_volume_percent:g}%. Record a major "
-                "anatomical objective conflict."
+                "Do not accept automatically. The plan is at the prespecified target-OAR "
+                "boundary: PTV V57 Gy is at least 95% and below 98%, PTV minimum dose is above "
+                "54 Gy, and an OAR is at or above its institutional limit. Send both "
+                "objectives for physician review."
             ),
-            "recommended_action_type": "anatomical_objective_conflict",
+            "recommended_action_type": "target_oar_tradeoff_boundary",
         }
     action, _, _ = select_manual_action(case, plan, config)
     if action is None:
+        conflicts = active_anatomical_conflicts(case, plan.dose)
+        if conflicts:
+            conflict = max(
+                conflicts,
+                key=lambda value: (
+                    value.minimum_volume_percent
+                    / value.goal.per_protocol_volume_percent
+                ),
+            )
+            structure = conflict.goal.structure.replace("_", " ")
+            return {
+                "review_findings": findings,
+                "review_decision": (
+                    "Do not accept. The permitted PTV-minus-OAR structure and priority "
+                    "changes did not resolve the target-OAR conflict. Record the final "
+                    f"{structure} and PTV trade-off for physician review."
+                ),
+                "recommended_action_type": "anatomical_objective_conflict",
+            }
         return {
             "review_findings": findings,
             "review_decision": "Do not accept. No permitted priority change remains.",
@@ -954,7 +1160,7 @@ def run_manual_sequence(
     steps = [PlanningStep3D(0, None, plan, clinical_violation_score_3d(plan.metrics, case, config))]
     if on_step is not None:
         on_step(PlanningTrajectory3D(case.case_id, tuple(steps), "running"))
-    if is_acceptable_3d(plan.metrics, case, config):
+    if manual_plan_is_acceptable(case, plan, config):
         return PlanningTrajectory3D(case.case_id, tuple(steps), "acceptable")
     if not plan_dose_is_numerically_valid(plan):
         return PlanningTrajectory3D(
@@ -962,16 +1168,16 @@ def run_manual_sequence(
             tuple(steps),
             "technical_failure_invalid_dose",
         )
-    if active_anatomical_conflicts(case, plan.dose):
-        return PlanningTrajectory3D(
-            case.case_id,
-            tuple(steps),
-            "requires_physician_review_anatomical_conflict",
-        )
     excluded_signatures: set[tuple[str, int | None]] = set()
     consecutive_nonresponse_signature: tuple[str, int | None] | None = None
     consecutive_nonresponse_count = 0
     for step_index in range(1, config.max_steps + 1):
+        if at_target_oar_tradeoff_boundary(case, plan, config):
+            return PlanningTrajectory3D(
+                case.case_id,
+                tuple(steps),
+                "requires_physician_review_target_oar_boundary",
+            )
         action, priorities, optimization_target = select_manual_action(
             case,
             plan,
@@ -979,7 +1185,8 @@ def run_manual_sequence(
             frozenset(excluded_signatures),
         )
         if action is None:
-            reason = (
+            hard_failure = unresolved_hard_failure_reason(case, plan)
+            reason = hard_failure or (
                 "requires_physician_review_nonresponse"
                 if excluded_signatures
                 else "requires_physician_review_no_allowed_change"
@@ -1021,7 +1228,24 @@ def run_manual_sequence(
             consecutive_nonresponse_signature = None
             consecutive_nonresponse_count = 0
         if consecutive_nonresponse_count >= 2:
-            excluded_signatures.add(signature)
+            hard_failure = unresolved_hard_failure_reason(case, plan)
+            hard_target_can_continue = (
+                signature == ("increase_target_priority", None)
+                and hard_failure
+                in {
+                    "technical_planning_failure_unresolved_target_minimum",
+                    "technical_planning_failure_unresolved_prostate_coverage",
+                    "technical_planning_failure_unresolved_ptv_coverage",
+                }
+                and priorities.target < config.priority_ceiling - 1e-6
+            )
+            hard_hotspot_can_continue = (
+                signature == ("increase_hotspot_priority", None)
+                and hard_failure == "technical_planning_failure_unresolved_hotspot"
+                and priorities.hotspot < config.priority_ceiling - 1e-6
+            )
+            if not hard_target_can_continue and not hard_hotspot_can_continue:
+                excluded_signatures.add(signature)
             consecutive_nonresponse_signature = None
             consecutive_nonresponse_count = 0
         if on_step is not None:
@@ -1032,18 +1256,13 @@ def run_manual_sequence(
                 tuple(steps),
                 "technical_failure_invalid_dose",
             )
-        if is_acceptable_3d(plan.metrics, case, config):
+        if manual_plan_is_acceptable(case, plan, config):
             return PlanningTrajectory3D(case.case_id, tuple(steps), "acceptable")
-        if active_anatomical_conflicts(case, plan.dose):
-            return PlanningTrajectory3D(
-                case.case_id,
-                tuple(steps),
-                "requires_physician_review_anatomical_conflict",
-            )
+    hard_failure = unresolved_hard_failure_reason(case, plan)
     return PlanningTrajectory3D(
         case.case_id,
         tuple(steps),
-        "requires_physician_review_step_limit",
+        hard_failure or "requires_physician_review_step_limit",
     )
 
 
@@ -1057,7 +1276,7 @@ def plan_dose_is_numerically_valid(plan) -> bool:
 def terminal_disposition(trajectory, case, config) -> str:
     """Return the safe terminal label used for learning and clinical review."""
 
-    if is_acceptable_3d(trajectory.final.plan.metrics, case, config):
+    if manual_plan_is_acceptable(case, trajectory.final.plan, config):
         acceptance_class = clinical_constraint_record(
             case,
             trajectory.final.plan.dose,
@@ -1065,6 +1284,8 @@ def terminal_disposition(trajectory, case, config) -> str:
         return f"accept_{acceptance_class}"
     if trajectory.stopping_reason.startswith("requires_physician_review"):
         return "requires_physician_review"
+    if trajectory.stopping_reason.startswith("technical_planning_failure"):
+        return "planning_failure"
     return "technical_or_unclassified_failure"
 
 
@@ -1077,6 +1298,7 @@ def tradeoff_state_record(case, trajectory, config) -> dict[str, float | int | s
         common_hard_passes = int(
             bool(clinical["prostate_v60gy_pass"])
             and bool(clinical["ptv_d1cc_pass"])
+            and bool(clinical["ptv_dmin_expert_floor_pass"])
             and step.plan.metrics.covering_isodose_ratio_95
             <= config.covering_isodose_ratio_95_max + 1e-6
         )
@@ -1147,6 +1369,7 @@ def step_row(
             if action is None
             else action.description
         ),
+        "field_count": len(step.plan.active_beams),
         "action_structure": (
             ""
             if action is None or action.structure_index is None
@@ -1192,7 +1415,7 @@ def step_row(
         "worst_oar_observed_percent": oar_details["observed_percent"],
         "worst_oar_limit_percent": oar_details["limit_percent"],
         "worst_oar_goal_ratio": oar_details["ratio"],
-        "acceptable": is_acceptable_3d(metrics, case, config),
+        "acceptable": manual_plan_is_acceptable(case, step.plan, config),
         "violation_score": step.violation_score,
         "response_metric": "" if response is None else response.metric,
         "response_previous_value": "" if response is None else response.previous_value,
@@ -1216,11 +1439,13 @@ def step_row(
 
 def save_trajectory_plot(rows: list[dict], path: Path) -> None:
     case_ids = list(dict.fromkeys(row.get("episode_id", row["case_id"]) for row in rows))
-    figure, axes = plt.subplots(1, 5, figsize=(22, 4.6), constrained_layout=True)
+    figure, axes = plt.subplots(2, 3, figsize=(15, 9), constrained_layout=True)
+    axes = axes.ravel()
     fields = (
         ("prostate_v60gy_percent", "Prostate V60 Gy (%)", 99.0, "Prostate coverage"),
         ("ptv_d99_gy", "PTV D99 (Gy)", 57.0, "PTV coverage"),
-        ("ptv_d1cc_gy", "PTV D1cc (Gy)", 63.0, "PTV hotspot"),
+        ("ptv_dmin_gy", "PTV minimum dose (Gy)", 54.0, "Hard PTV minimum"),
+        ("ptv_d1cc_gy", "PTV D1cc (Gy)", 63.0, "Hard PTV hotspot limit"),
         ("covering_isodose_ratio_57gy", "57 Gy volume / PTV volume", 1.10, "Conformity"),
         ("worst_oar_goal_ratio", "Worst OAR value / limit", 1.0, "OAR goals"),
     )
@@ -1247,7 +1472,7 @@ def save_trajectory_plot(rows: list[dict], path: Path) -> None:
     axes[0].ticklabel_format(axis="y", style="plain", useOffset=False)
     handles, labels = axes[0].get_legend_handles_labels()
     figure.legend(handles, labels, loc="lower center", bbox_to_anchor=(0.5, -0.10), ncol=6, frameon=False)
-    figure.suptitle("Prostate planning: approved clinical metrics after each manual change")
+    figure.suptitle("Prostate planning: clinical metrics after each manual change")
     save_figure_atomic(figure, path, dpi=180, bbox_inches="tight")
     plt.close(figure)
 
@@ -1265,6 +1490,7 @@ def save_action_map(rows: list[dict], path: Path) -> None:
         "increase_normal_tissue_priority": 4,
         "create_ptv_minus_bladder": 5,
         "create_ptv_minus_rectum": 5,
+        "replace_delivery_template": 6,
     }
     names = {
         1: "PTV",
@@ -1272,6 +1498,7 @@ def save_action_map(rows: list[dict], path: Path) -> None:
         3: "OAR",
         4: "Normal tissue",
         5: "PTV-minus-OAR",
+        6: "Beam template",
     }
     case_index = {case_id: index for index, case_id in enumerate(case_ids)}
     for row in actions:
@@ -1289,16 +1516,24 @@ def save_action_map(rows: list[dict], path: Path) -> None:
         values,
         aspect="auto",
         cmap=ListedColormap(
-            ("#f2f2f2", "#4c78a8", "#f58518", "#54a24b", "#b279a2", "#eeca3b")
+            (
+                "#f2f2f2",
+                "#4c78a8",
+                "#f58518",
+                "#54a24b",
+                "#b279a2",
+                "#eeca3b",
+                "#e45756",
+            )
         ),
         vmin=0,
-        vmax=5,
+        vmax=6,
     )
     axis.set_xticks(np.arange(maximum_step), [f"Step {value}" for value in range(1, maximum_step + 1)])
     axis.set_yticks(np.arange(len(case_ids)), [value.replace("prostate3d-", "") for value in case_ids])
     axis.set_xlabel("Manual planning action")
     axis.set_ylabel("Planning case")
-    axis.set_title("Allowed manual changes: target structure and clinical priorities")
+    axis.set_title("Allowed manual changes: beam template, target structure, and priorities")
     for y in range(values.shape[0]):
         for x in range(values.shape[1]):
             axis.text(x, y, labels[y, x] or "None", ha="center", va="center", fontsize=8)
@@ -1672,41 +1907,162 @@ def save_representative_review(
 
     metrics = final.metrics
     clinical = clinical_constraint_record(case, final.dose)
-    pass_text = "PASS" if is_acceptable_3d(metrics, case, config) else "FAIL"
-    metric_text = "Clinical objective review\n\n"
-    metric_text += (
-        f"Prostate V60: {float(clinical['prostate_v60gy_percent']):5.1f}%  >=99%  "
-        f"{'PASS' if clinical['prostate_v60gy_pass'] else 'FAIL'}\n"
-        f"PTV D99:      {float(clinical['ptv_d99_gy']):5.2f} Gy >=57 Gy "
-        f"{'PASS' if clinical['ptv_d99_pass'] else 'FAIL'}\n"
-        f"PTV V57:      {float(clinical['ptv_v57gy_percent']):5.1f}%  >=95%  "
-        f"{'PASS' if clinical['ptv_v57gy_acceptable_variation_pass'] else 'FAIL'}\n"
-        f"PTV D1cc:     {float(clinical['ptv_d1cc_gy']):5.2f} Gy <=63 Gy "
-        f"{'PASS' if clinical['ptv_d1cc_pass'] else 'FAIL'}\n"
-        f"Rectum V37:   {float(clinical['rectum_v37gy_percent']):5.1f}%  <=50%  "
-        f"{'PASS' if clinical['rectum_v37gy_pass'] else 'FAIL'}\n"
-        f"Rectum V46:   {float(clinical['rectum_v46gy_percent']):5.1f}%  <=30%  "
-        f"{'PASS' if clinical['rectum_v46gy_pass'] else 'FAIL'}\n"
-        f"Bladder V37:  {float(clinical['bladder_v37gy_percent']):5.1f}%  <=50%  "
-        f"{'PASS' if clinical['bladder_v37gy_pass'] else 'FAIL'}\n"
-        f"Bladder V46:  {float(clinical['bladder_v46gy_percent']):5.1f}%  <=30%  "
-        f"{'PASS' if clinical['bladder_v46gy_pass'] else 'FAIL'}\n"
-        f"Femur L V43:  {float(clinical['femur_head_l_v43gy_percent']):5.1f}%  <=5%   "
-        f"{'PASS' if clinical['femur_head_l_v43gy_pass'] else 'FAIL'}\n"
-        f"Femur R V43:  {float(clinical['femur_head_r_v43gy_percent']):5.1f}%  <=5%   "
-        f"{'PASS' if clinical['femur_head_r_v43gy_pass'] else 'FAIL'}\n"
-        f"Conformity:   {metrics.covering_isodose_ratio_95:5.3f}   <=1.10  "
-        f"{'PASS' if metrics.covering_isodose_ratio_95 <= 1.10 else 'FAIL'}\n\n"
-        f"Overall clinical review: {pass_text}\n"
-        f"Class: {clinical['protocol_acceptance_class']}"
+    accepted = manual_plan_is_acceptable(case, final, config)
+    boundary = at_target_oar_tradeoff_boundary(case, final, config)
+    acceptance_class = str(clinical["protocol_acceptance_class"])
+    status_colors = {
+        "MEETS": "#1b7f3a",
+        "VARIATION": "#b36b00",
+        "PHYS REVIEW": "#b36b00",
+        "FAIL": "#b42318",
+    }
+
+    def display_status(
+        exact_pass: bool,
+        *,
+        hard_limit: bool = False,
+        variation_ok: bool = False,
+    ) -> str:
+        if exact_pass:
+            return "MEETS"
+        if hard_limit:
+            return "FAIL"
+        if accepted and variation_ok:
+            return "VARIATION"
+        if boundary:
+            return "PHYS REVIEW"
+        return "FAIL"
+
+    objective_lines = (
+        (
+            f"Prostate V60 {float(clinical['prostate_v60gy_percent']):5.1f}%  >=99%",
+            display_status(bool(clinical["prostate_v60gy_pass"]), hard_limit=True),
+        ),
+        (
+            f"PTV D99      {float(clinical['ptv_d99_gy']):5.2f} Gy >=57 Gy",
+            display_status(
+                bool(clinical["ptv_d99_pass"]),
+                variation_ok=bool(clinical["ptv_v57gy_acceptable_variation_pass"]),
+            ),
+        ),
+        (
+            f"PTV Dmin     {float(clinical['ptv_dmin_gy']):5.2f} Gy  >54 Gy",
+            display_status(
+                bool(clinical["ptv_dmin_expert_floor_pass"]),
+                hard_limit=True,
+            ),
+        ),
+        (
+            f"PTV V57      {float(clinical['ptv_v57gy_percent']):5.1f}%  >=98% preferred",
+            display_status(
+                float(clinical["ptv_v57gy_percent"]) >= PREFERRED_PTV_V57_PERCENT,
+                variation_ok=bool(clinical["ptv_v57gy_acceptable_variation_pass"]),
+            ),
+        ),
+        (
+            f"PTV D1cc     {float(clinical['ptv_d1cc_gy']):5.2f} Gy <=63 Gy HARD",
+            display_status(bool(clinical["ptv_d1cc_pass"]), hard_limit=True),
+        ),
+        (
+            f"Rectum V37   {float(clinical['rectum_v37gy_percent']):5.1f}%  <=50%",
+            display_status(
+                bool(clinical["rectum_v37gy_pass"]),
+                variation_ok=float(clinical["rectum_v37gy_percent"]) <= 55.0,
+            ),
+        ),
+        (
+            f"Rectum V46   {float(clinical['rectum_v46gy_percent']):5.1f}%  <=30%",
+            display_status(
+                bool(clinical["rectum_v46gy_pass"]),
+                variation_ok=float(clinical["rectum_v46gy_percent"]) <= 35.0,
+            ),
+        ),
+        (
+            f"Bladder V37  {float(clinical['bladder_v37gy_percent']):5.1f}%  <=50%",
+            display_status(
+                bool(clinical["bladder_v37gy_pass"]),
+                variation_ok=float(clinical["bladder_v37gy_percent"]) <= 55.0,
+            ),
+        ),
+        (
+            f"Bladder V46  {float(clinical['bladder_v46gy_percent']):5.1f}%  <=30%",
+            display_status(
+                bool(clinical["bladder_v46gy_pass"]),
+                variation_ok=float(clinical["bladder_v46gy_percent"]) <= 35.0,
+            ),
+        ),
+        (
+            f"Femur L V43  {float(clinical['femur_head_l_v43gy_percent']):5.1f}%   <=5%",
+            display_status(bool(clinical["femur_head_l_v43gy_pass"]), hard_limit=True),
+        ),
+        (
+            f"Femur R V43  {float(clinical['femur_head_r_v43gy_percent']):5.1f}%   <=5%",
+            display_status(bool(clinical["femur_head_r_v43gy_pass"]), hard_limit=True),
+        ),
+        (
+            f"Conformity   {metrics.covering_isodose_ratio_95:5.3f}   <=1.10",
+            display_status(
+                metrics.covering_isodose_ratio_95 <= 1.10,
+                hard_limit=True,
+            ),
+        ),
+    )
+    axes[1, 1].axis("off")
+    axes[1, 1].text(
+        0.02,
+        0.98,
+        "Clinical objective review",
+        va="top",
+        fontsize=10,
+        fontweight="bold",
+    )
+    for line_index, (line, status) in enumerate(objective_lines):
+        axes[1, 1].text(
+            0.02,
+            0.91 - line_index * 0.058,
+            f"{line:<42} {status}",
+            va="top",
+            family="monospace",
+            fontsize=8.1,
+            color=status_colors[status],
+        )
+    if accepted:
+        overall_status = (
+            "MEETS" if acceptance_class == "per_protocol" else "VARIATION"
+        )
+    elif boundary:
+        overall_status = "PHYS REVIEW"
+    else:
+        overall_status = "FAIL"
+    axes[1, 1].text(
+        0.02,
+        0.18,
+        f"Overall: {overall_status}",
+        va="top",
+        fontsize=10,
+        fontweight="bold",
+        color=status_colors[overall_status],
+    )
+    axes[1, 1].text(
+        0.02,
+        0.12,
+        f"Class: {acceptance_class}",
+        va="top",
+        family="monospace",
+        fontsize=8.1,
     )
     if metrics.relaxed_overlap_d98 is not None:
-        metric_text += (
-            f"\nOverlap D98: {metrics.relaxed_overlap_d98 * PRESCRIPTION_GY:.2f} Gy; "
-            "no local overlap dose floor"
+        axes[1, 1].text(
+            0.02,
+            0.06,
+            (
+                f"Overlap D98 {metrics.relaxed_overlap_d98 * PRESCRIPTION_GY:.2f} Gy; "
+                f"objective {metrics.relaxed_overlap_minimum * PRESCRIPTION_GY:.1f} Gy"
+            ),
+            va="top",
+            family="monospace",
+            fontsize=7.7,
         )
-    axes[1, 1].axis("off")
-    axes[1, 1].text(0.02, 0.98, metric_text, va="top", family="monospace", fontsize=8.8)
 
     actions = [step.action.description for step in trajectory.steps if step.action]
     review = short_review_record(case, final, config)
@@ -1762,7 +2118,7 @@ def save_representative_review(
 
 
 CLINICAL_CONFIG = HighLevelSearchConfig3D(
-    max_steps=8,
+    max_steps=32,
     beam_width=1,
     add_candidates=0,
     remove_candidates=0,
@@ -1770,15 +2126,16 @@ CLINICAL_CONFIG = HighLevelSearchConfig3D(
     optimizer_iterations=1000,
     optimizer_learning_rate=0.02,
     priority_factor=3.0,
-    priority_ceiling=7.59375,
+    priority_ceiling=22.78125,
     priority_floor=1.0,
     d95_min=0.0,
     d98_min=0.0,
     d99_min=0.0,
+    dmin_min=0.90,
     d50_min=0.0,
     d50_max=float("inf"),
     d02_max=float("inf"),
-    d1cc_max=float("inf"),
+    d1cc_max=1.05,
     clinical_target_v100_min=0.0,
     target_hotspot_threshold=1.00,
     target_hotspot_weight=50.0,
@@ -1798,7 +2155,7 @@ CLINICAL_CONFIG = HighLevelSearchConfig3D(
     covering_isodose_ratio_95_max=1.10,
     r50_max=float("inf"),
     manual_ptv_oar_crop=True,
-    ptv_oar_overlap_minimum=0.0,
+    ptv_oar_overlap_minimum=0.90,
     overlap_floor_is_acceptance=False,
 )
 
@@ -1865,6 +2222,14 @@ def main() -> None:
         choices=("static_7", "static_9", "static_12", "arc_like_360"),
         default="static_7",
     )
+    parser.add_argument(
+        "--field-template-escalation",
+        action="store_true",
+        help=(
+            "For unresolved hard failures, record a manual replan from static_7 "
+            "to static_9 and then static_12."
+        ),
+    )
     parser.add_argument("--iterations", type=int, default=CLINICAL_CONFIG.optimizer_iterations)
     parser.add_argument("--learning-rate", type=float, default=CLINICAL_CONFIG.optimizer_learning_rate)
     parser.add_argument(
@@ -1898,7 +2263,7 @@ def main() -> None:
         default=CLINICAL_CONFIG.ptv_oar_overlap_minimum,
         help=(
             "Relative-dose floor for a manually separated PTV-OAR overlap; "
-            "the clinical default is zero and PTV V57 Gy >=95%% controls total undercoverage"
+            "the expert-review default is 0.90, which keeps PTV minimum dose above 54 Gy"
         ),
     )
     parser.add_argument("--device", default="cuda:0")
@@ -1922,6 +2287,10 @@ def main() -> None:
         raise ValueError("Grid sizes must be at least 16")
     if not 0.0 <= args.ptv_oar_overlap_minimum <= 1.0:
         raise ValueError("PTV-OAR overlap minimum must be in [0, 1]")
+    if args.field_template_escalation and args.delivery_mode != "static_7":
+        raise ValueError(
+            "Field-template escalation requires --delivery-mode static_7"
+        )
     if not (
         0.0 <= args.minimum_bladder_overlap_fraction <= 1.0
         and 0.0 <= args.minimum_rectum_overlap_fraction <= 1.0
@@ -2154,6 +2523,26 @@ def main() -> None:
                     "worst_oar_goal_ratio_max": 1.50,
                     "ptv_v57gy_percent_min": 90.0,
                 },
+                "expert_review_rules": {
+                    "preferred_ptv_v57gy_percent": PREFERRED_PTV_V57_PERCENT,
+                    "minimum_ptv_v57gy_percent_when_oar_limited": MINIMUM_PTV_V57_PERCENT,
+                    "target_oar_boundary_ptv_v57gy_percent_upper_exclusive": (
+                        TRADEOFF_BOUNDARY_PTV_V57_UPPER_EXCLUSIVE_PERCENT
+                    ),
+                    "strict_ptv_dmin_gy": f">{MINIMUM_PTV_DMIN_GY:g}",
+                    "ptv_d1cc_gy": "<=63",
+                    "ptv_d1cc_is_hard_limit": True,
+                    "split_target_required_before_anatomical_conflict": True,
+                    "field_template_escalation_enabled": args.field_template_escalation,
+                    "field_template_escalation_sequence": (
+                        ["static_7", *FIELD_TEMPLATE_ESCALATION_MODES]
+                        if args.field_template_escalation
+                        else [args.delivery_mode]
+                    ),
+                    "field_template_escalation_trigger": (
+                        "unresolved hard planning failure only"
+                    ),
+                },
                 "clinical_objective_set": clinical_objective_set_record(),
             },
             indent=2,
@@ -2169,10 +2558,10 @@ def main() -> None:
     major_variation_reviews: list[dict] = []
     representative_case = None
     representative_trajectory = None
+    representative_mode = mode
     review_dir = output_dir / "review_plans"
     review_dir.mkdir(exist_ok=True)
-    previous_case = None
-    engine = None
+    engine_cache: dict[tuple[str, str], TorchImplicitDoseEngine3D] = {}
     custom_priority_values = (
         args.initial_target_priority,
         args.initial_hotspot_priority,
@@ -2180,21 +2569,13 @@ def main() -> None:
         args.initial_normal_tissue_priority,
     )
     for index, (record, case, profile_name) in enumerate(episodes, start=1):
-        if case is not previous_case:
-            engine = TorchImplicitDoseEngine3D(
-                case,
-                mode.angles_degrees,
-                args.fluence_size,
-                device=device,
-                dtype=torch.float32,
-            )
-            previous_case = case
         initial_priorities = starting_priorities(
             case,
             profile_name,
             custom_priority_values,
         )
         episode_id = f"{case.case_id}__{profile_name}"
+        review_mode = {"value": mode}
         def on_step(partial_trajectory: PlanningTrajectory3D) -> None:
             preview_rows = rows + [
                 step_row(
@@ -2207,8 +2588,11 @@ def main() -> None:
                 )
                 for step in partial_trajectory.steps
             ]
-            progress_step = (index - 1) * (config.max_steps + 1) + partial_trajectory.final.step + 1
-            progress_steps_total = len(episodes) * (config.max_steps + 1)
+            progress_step = (
+                (index - 1) * (PROGRESS_MANUAL_STEP_HORIZON + 1)
+                + min(partial_trajectory.final.step + 1, PROGRESS_MANUAL_STEP_HORIZON)
+            )
+            progress_steps_total = len(episodes) * (PROGRESS_MANUAL_STEP_HORIZON + 1)
             if len(episodes) <= 12 or should_update_figures(
                 progress_step,
                 progress_steps_total,
@@ -2221,9 +2605,13 @@ def main() -> None:
                     partial_trajectory,
                     config,
                     output_dir / "03_representative_ptv_review.png",
-                    mode.angles_degrees,
+                    review_mode["value"].angles_degrees,
                 )
-            fraction = min((partial_trajectory.final.step + 1) / (config.max_steps + 1), 0.95)
+            fraction = min(
+                (partial_trajectory.final.step + 1)
+                / (PROGRESS_MANUAL_STEP_HORIZON + 1),
+                0.95,
+            )
             write_progress(
                 output_dir,
                 (index - 1) + fraction,
@@ -2237,14 +2625,80 @@ def main() -> None:
                 unit="planning-episode equivalents",
             )
 
-        trajectory = run_manual_sequence(
-            case,
-            engine,
-            mode.active_beams,
-            config,
-            initial_priorities=initial_priorities,
-            on_step=on_step,
-        )
+        delivery_modes = [mode]
+        if args.field_template_escalation:
+            delivery_modes.extend(
+                delivery_mode_3d(name) for name in FIELD_TEMPLATE_ESCALATION_MODES
+            )
+        trajectory = None
+        delivery_modes_attempted: list[str] = []
+        final_mode = mode
+        for current_mode in delivery_modes:
+            if trajectory is not None and not field_template_escalation_allowed(
+                trajectory.stopping_reason
+            ):
+                break
+            if trajectory is not None and trajectory.final.step >= config.max_steps:
+                break
+            cache_key = (case.case_id, current_mode.name)
+            if cache_key not in engine_cache:
+                engine_cache[cache_key] = TorchImplicitDoseEngine3D(
+                    case,
+                    current_mode.angles_degrees,
+                    args.fluence_size,
+                    device=device,
+                    dtype=torch.float32,
+                )
+            existing = trajectory
+            review_mode["value"] = current_mode
+            if existing is None:
+                segment_config = config
+                segment_callback = on_step
+            else:
+                previous_mode = final_mode
+                remaining_actions = max(
+                    config.max_steps - existing.final.step - 1,
+                    0,
+                )
+                segment_config = replace(config, max_steps=remaining_actions)
+
+                def segment_callback(
+                    partial_trajectory: PlanningTrajectory3D,
+                    prior_trajectory: PlanningTrajectory3D = existing,
+                    prior_mode: DeliveryMode3D = previous_mode,
+                    active_mode: DeliveryMode3D = current_mode,
+                ) -> None:
+                    on_step(
+                        append_delivery_replan(
+                            prior_trajectory,
+                            partial_trajectory,
+                            prior_mode,
+                            active_mode,
+                        )
+                    )
+
+            segment = run_manual_sequence(
+                case,
+                engine_cache[cache_key],
+                current_mode.active_beams,
+                segment_config,
+                initial_priorities=initial_priorities,
+                on_step=segment_callback,
+            )
+            trajectory = (
+                segment
+                if existing is None
+                else append_delivery_replan(
+                    existing,
+                    segment,
+                    final_mode,
+                    current_mode,
+                )
+            )
+            delivery_modes_attempted.append(current_mode.name)
+            final_mode = current_mode
+        if trajectory is None:
+            raise RuntimeError("No delivery plan was evaluated")
         rows.extend(
             step_row(
                 case,
@@ -2262,7 +2716,7 @@ def main() -> None:
             trajectory,
             config,
             review_dir / f"{episode_id}.png",
-            mode.angles_degrees,
+            final_mode.angles_degrees,
         )
         final_metrics = trajectory.final.plan.metrics
         final_clinical = clinical_constraint_record(case, trajectory.final.plan.dose)
@@ -2275,14 +2729,17 @@ def main() -> None:
                 "starting_profile": profile_name,
                 "anatomy_stratum": record.get("anatomy_stratum"),
                 "acceptable": trajectory.stopping_reason == "acceptable",
-                "initial_acceptable": is_acceptable_3d(
-                    trajectory.steps[0].plan.metrics,
+                "initial_acceptable": manual_plan_is_acceptable(
                     case,
+                    trajectory.steps[0].plan,
                     config,
                 ),
                 "terminal_disposition": disposition,
                 "stopping_reason": trajectory.stopping_reason,
                 "manual_changes": len(trajectory.steps) - 1,
+                "delivery_modes_attempted": ";".join(delivery_modes_attempted),
+                "final_delivery_mode": final_mode.name,
+                "final_field_count": len(final_mode.angles_degrees),
                 "repeated_unproductive_actions": len(unproductive_steps),
                 "expert_demonstration_eligible": (
                     trajectory.stopping_reason == "acceptable"
@@ -2319,6 +2776,7 @@ def main() -> None:
         ):
             representative_case = case
             representative_trajectory = trajectory
+            representative_mode = final_mode
         if len(episodes) <= 12 or index == len(episodes):
             save_trajectory_plot(rows, output_dir / "01_ptv_clinical_trajectory.png")
             save_action_map(rows, output_dir / "02_manual_action_map.png")
@@ -2327,7 +2785,7 @@ def main() -> None:
                 representative_trajectory,
                 config,
                 output_dir / "03_representative_ptv_review.png",
-                mode.angles_degrees,
+                representative_mode.angles_degrees,
             )
         save_starting_profile_outcomes(
             rows,
@@ -2515,6 +2973,9 @@ def main() -> None:
         "final_median_ptv_d99_gy": float(
             np.median([float(value["ptv_d99_gy"]) for value in outcomes])
         ),
+        "final_median_ptv_dmin_gy": float(
+            np.median([float(value["ptv_dmin_gy"]) for value in outcomes])
+        ),
         "final_median_ptv_v57gy_percent": float(
             np.median([float(value["ptv_v57gy_percent"]) for value in outcomes])
         ),
@@ -2533,8 +2994,24 @@ def main() -> None:
         ),
         "elapsed_seconds": time.perf_counter() - started,
         "gpu": torch.cuda.get_device_name(device),
+        "initial_beam_angles_degrees": mode.angles_degrees,
+        "initial_delivery_mode": mode.name,
         "beam_angles_degrees": mode.angles_degrees,
-        "delivery_mode": mode.name,
+        "delivery_mode": (
+            f"{mode.name}_with_field_template_escalation"
+            if args.field_template_escalation
+            else mode.name
+        ),
+        "field_template_escalation_enabled": args.field_template_escalation,
+        "final_delivery_modes": {
+            delivery_name: sum(
+                str(value["final_delivery_mode"]) == delivery_name
+                for value in outcomes
+            )
+            for delivery_name in dict.fromkeys(
+                str(value["final_delivery_mode"]) for value in outcomes
+            )
+        },
         "configuration": {
             **vars(config),
             **initial_priority_record,

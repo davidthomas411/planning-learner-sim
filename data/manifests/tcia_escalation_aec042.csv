@@ -1,0 +1,2 @@
+assignment_order,patient_id,case_id,anatomy_stratum,stratum_overlap_rank,stratum_size,maximum_ptv_oar_overlap_fraction,starting_profile,assignment_rule
+19,Prostate-AEC-042,tcia-Prostate-AEC-042,interface_overlap,49,70,0.13105413105413105,conformity_stress,field_template_escalation_smoke

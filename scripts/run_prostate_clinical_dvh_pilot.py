@@ -30,7 +30,7 @@ STATUS_PAGE = """<!doctype html>
 body{font-family:Arial,sans-serif;max-width:760px;margin:48px auto;padding:0 20px;color:#202124;background:#fff}
 h1{font-size:24px;font-weight:500}.track{height:28px;background:#e8eaed;border-radius:4px;overflow:hidden}
 .bar{height:100%;width:0;background:#1a73e8;transition:width .35s ease}.line{display:flex;justify-content:space-between;margin:10px 0}
-.detail{color:#5f6368}.complete{background:#188038}.failed{background:#d93025}.gallery{display:grid;grid-template-columns:1fr;gap:24px;margin-top:30px}.card{display:none;margin:0}.card img{display:block;width:100%;height:auto;border:1px solid #dadce0;border-radius:4px}.card figcaption{margin-top:8px;color:#5f6368;font-size:14px}@media(prefers-color-scheme:dark){body{color:#e8eaed;background:#202124}.track{background:#3c4043}.detail,.card figcaption{color:#bdc1c6}.card img{border-color:#5f6368}}
+.detail{color:#5f6368}.complete{background:#188038}.failed{background:#d93025}.criteria-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}.criteria-card{border:1px solid #dadce0;border-radius:6px;padding:14px}.criteria-card h3{margin:0 0 10px;font-size:16px}.criteria-row{display:flex;justify-content:space-between;gap:12px;padding:4px 0;font-size:14px}.state{font-weight:700}.meets{color:#188038}.variation,.review{color:#b06000}.fails{color:#d93025}.gallery{display:grid;grid-template-columns:1fr;gap:24px;margin-top:30px}.card{display:none;margin:0}.card img{display:block;width:100%;height:auto;border:1px solid #dadce0;border-radius:4px}.card figcaption{margin-top:8px;color:#5f6368;font-size:14px}@media(prefers-color-scheme:dark){body{color:#e8eaed;background:#202124}.track{background:#3c4043}.detail,.card figcaption{color:#bdc1c6}.card img,.criteria-card{border-color:#5f6368}}
 </style>
 </head>
 <body>
@@ -40,9 +40,15 @@ h1{font-size:24px;font-weight:500}.track{height:28px;background:#e8eaed;border-r
 <div class="line detail"><span id="count">0 / 0 plans</span><span id="eta">Estimating remaining time</span></div>
 <p class="detail" id="case">Waiting for first plan.</p>
 <p class="detail" id="updated"></p>
+<h2>Completed plan criteria</h2>
+<p class="detail">Green meets the rule. Amber is a declared variation or requires physician review. Red fails.</p>
+<div class="criteria-grid" id="criteriaGrid"></div>
 <h2>Review figures</h2>
 <p class="detail">Figures appear when the run writes them. Displayed files refresh every two seconds.</p>
 <div class="gallery" id="gallery"></div>
+<h2>Completed plan reviews</h2>
+<p class="detail">One dose, DVH, criteria, and action figure appears for each completed plan.</p>
+<div class="gallery" id="caseGallery"></div>
 <script>
 const figures=[
 ['00_selected_anatomy.png','Selected PTV and OAR overlap anatomy'],
@@ -73,6 +79,12 @@ const figures=[
 const gallery=document.getElementById('gallery');
 for(const [file,label] of figures){const card=document.createElement('figure');card.className='card';const img=document.createElement('img');img.alt=label;const caption=document.createElement('figcaption');caption.textContent=label;card.append(img,caption);gallery.append(card);card.dataset.file=file;card.dataset.label=label;}
 function refreshFigures(){for(const card of gallery.children){const probe=new Image();probe.onload=()=>{const img=card.querySelector('img');img.src=probe.src;card.style.display='block';};probe.onerror=()=>{};probe.src=card.dataset.file+'?'+Date.now();}}
+const caseGallery=document.getElementById('caseGallery');
+async function refreshCaseFigures(){try{const response=await fetch('review_plans/?'+Date.now(),{cache:'no-store'});if(!response.ok)return;const listing=new DOMParser().parseFromString(await response.text(),'text/html');const files=[...listing.querySelectorAll('a')].map(link=>link.getAttribute('href')||'').filter(href=>href.toLowerCase().endsWith('.png')).sort();for(const file of files){if(caseGallery.querySelector('[data-file="'+CSS.escape(file)+'"]'))continue;const card=document.createElement('figure');card.className='card';card.style.display='block';card.dataset.file=file;const img=document.createElement('img');img.alt='Plan review '+decodeURIComponent(file).replace(/[.]png$/,'');img.src='review_plans/'+file+'?'+Date.now();const caption=document.createElement('figcaption');caption.textContent=decodeURIComponent(file).replace(/[.]png$/,'').replaceAll('__',' — ').replaceAll('_',' ');card.append(img,caption);caseGallery.append(card);}}catch(error){}}
+function parseCsv(text){const rows=[];let row=[],field='',quoted=false;for(let index=0;index<text.length;index++){const char=text[index];if(quoted){if(char==='"'&&text[index+1]==='"'){field+='"';index++;}else if(char==='"'){quoted=false;}else{field+=char;}}else if(char==='"'){quoted=true;}else if(char===','){row.push(field);field='';}else if(char==='\n'){row.push(field.replace(/\r$/,''));rows.push(row);row=[];field='';}else{field+=char;}}if(field||row.length){row.push(field);rows.push(row);}if(rows.length<2)return[];const headers=rows[0];return rows.slice(1).filter(values=>values.some(Boolean)).map(values=>Object.fromEntries(headers.map((header,index)=>[header,values[index]??''])));}
+function stateMarkup(label,kind){return '<span class="state '+kind+'">'+label+'</span>';}
+function criterionRow(label,value,state,kind){return '<div class="criteria-row"><span>'+label+' '+value+'</span>'+stateMarkup(state,kind)+'</div>';}
+async function refreshCriteria(){try{const response=await fetch('trajectory_steps.csv?'+Date.now(),{cache:'no-store'});if(!response.ok)return;const terminal=parseCsv(await response.text()).filter(row=>row.stopping_reason);const grid=document.getElementById('criteriaGrid');grid.innerHTML='';for(const row of terminal){const boundary=row.stopping_reason==='requires_physician_review_target_oar_boundary';const accepted=row.stopping_reason==='acceptable';const overall=accepted?(row.protocol_acceptance_class==='per_protocol'?['MEETS','meets']:['VARIATION','variation']):boundary?['PHYS REVIEW','review']:['FAIL','fails'];const v57=Number(row.ptv_v57gy_percent);const dmin=Number(row.ptv_dmin_gy);const d1cc=Number(row.ptv_d1cc_gy);const conformity=Number(row.covering_isodose_ratio_57gy);const oar=Number(row.worst_oar_goal_ratio);const v57state=v57>=98?['MEETS','meets']:v57>=95&&boundary?['PHYS REVIEW','review']:['FAIL','fails'];const oarState=oar<=1?['MEETS','meets']:accepted?['VARIATION','variation']:boundary?['PHYS REVIEW','review']:['FAIL','fails'];const card=document.createElement('section');card.className='criteria-card';card.innerHTML='<h3>'+row.episode_id.replace('tcia-Prostate-','').replace('__',' — ').replaceAll('_',' ')+'</h3>'+criterionRow('Overall','',overall[0],overall[1])+criterionRow('PTV V57',v57.toFixed(2)+'%',v57state[0],v57state[1])+criterionRow('PTV Dmin',dmin.toFixed(2)+' Gy',dmin>54?'MEETS':'FAIL',dmin>54?'meets':'fails')+criterionRow('PTV D1cc (hard)',d1cc.toFixed(2)+' Gy',d1cc<=63?'MEETS':'FAIL',d1cc<=63?'meets':'fails')+criterionRow('Conformity',conformity.toFixed(3),conformity<=1.10?'MEETS':'FAIL',conformity<=1.10?'meets':'fails')+criterionRow('Worst OAR ratio',oar.toFixed(3),oarState[0],oarState[1])+criterionRow('Fields',row.field_count,'INFO','')+criterionRow('Manual steps',row.step,'INFO','');grid.append(card);}}catch(error){}}
 async function refresh(){try{const response=await fetch('progress.json?'+Date.now(),{cache:'no-store'});const p=await response.json();
 const value=Math.max(0,Math.min(100,p.percent_complete||0));document.getElementById('bar').style.width=value+'%';
 document.querySelector('.track').setAttribute('aria-valuenow',value.toFixed(1));document.getElementById('percent').textContent=value.toFixed(1)+'%';
@@ -84,7 +96,7 @@ document.getElementById('case').textContent=p.status==='failed'&&p.error_message
 document.getElementById('updated').textContent='Local update: '+new Date().toLocaleTimeString();
 document.getElementById('bar').className='bar '+(p.status==='complete'?'complete':p.status==='failed'?'failed':'');}catch(error){document.getElementById('updated').textContent='Waiting for progress file...';}}
 function format(seconds){seconds=Math.max(0,Math.round(seconds||0));const minutes=Math.floor(seconds/60);const remainder=seconds%60;return minutes?minutes+'m '+remainder+'s':remainder+'s';}
-refresh();refreshFigures();setInterval(()=>{refresh();refreshFigures();},2000);
+refresh();refreshCriteria();refreshFigures();refreshCaseFigures();setInterval(()=>{refresh();refreshCriteria();refreshFigures();refreshCaseFigures();},2000);
 </script>
 </body>
 </html>

@@ -1,0 +1,11 @@
+assignment_order,patient_id,case_id,anatomy_stratum,stratum_overlap_rank,stratum_size,maximum_ptv_oar_overlap_fraction,starting_profile,assignment_rule
+3,Prostate-AEC-023,tcia-Prostate-AEC-023,interface_overlap,68,70,0.21035598705501618,oar_guarded,expert_review_replan
+9,Prostate-AEC-030,tcia-Prostate-AEC-030,interface_overlap,65,70,0.19680851063829788,balanced_reference,expert_review_replan
+19,Prostate-AEC-042,tcia-Prostate-AEC-042,interface_overlap,49,70,0.13105413105413105,conformity_stress,expert_review_replan
+36,Prostate-AEC-060,tcia-Prostate-AEC-060,interface_overlap,55,70,0.15311909262759923,conformity_stress,expert_review_replan
+48,Prostate-AEC-073,tcia-Prostate-AEC-073,interface_overlap,70,70,0.29015544041450775,conformity_stress,expert_review_replan
+51,Prostate-AEC-076,tcia-Prostate-AEC-076,interface_overlap,58,70,0.16455696202531644,conformity_stress,expert_review_replan
+66,Prostate-AEC-091,tcia-Prostate-AEC-091,interface_overlap,56,70,0.15764705882352942,balanced_reference,expert_review_replan
+72,Prostate-AEC-097,tcia-Prostate-AEC-097,interface_overlap,61,70,0.1713747645951036,conformity_stress,expert_review_replan
+80,Prostate-AEC-105,tcia-Prostate-AEC-105,interface_overlap,33,70,0.0984251968503937,hotspot_stress,expert_review_replan
+82,Prostate-AEC-108,tcia-Prostate-AEC-108,interface_overlap,66,70,0.2040133779264214,hotspot_stress,expert_review_replan
